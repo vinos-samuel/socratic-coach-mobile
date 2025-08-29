@@ -16,8 +16,9 @@
       "**/*"
     ],
     "ios": {
-  "bundleIdentifier": "com.myapp.socratic"
-},
+      "supportsTablet": true,
+      "bundleIdentifier": "com.socraticcoach.app"
+    },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -40,3 +41,4 @@
     }
   }
 }
+ 
