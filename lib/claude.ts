@@ -1,0 +1,40 @@
+import Anthropic from "@anthropic-ai/sdk";
+import { DeepAnalysisRequest } from "@/types";
+
+const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+export async function getDeepAnalysis(req: DeepAnalysisRequest): Promise<string> {
+  const signalsSummary = req.signals
+    .map((s) => `${s.label}: ${s.value} [${s.status.toUpperCase()}]`)
+    .join("\n");
+
+  const prompt = `Ticker: ${req.ticker} (${req.name})
+Price: $${req.price} | Change: ${req.changePct > 0 ? "+" : ""}${req.changePct.toFixed(2)}%
+Momentum Score: ${req.score}/100
+Type: ${req.type === "crypto" ? "Cryptocurrency" : "US Stock"}
+
+SIGNALS:
+${signalsSummary}
+
+TRADE SETUP (rule-based):
+- Entry zone: $${req.tradeSetup.entryLow} – $${req.tradeSetup.entryHigh}
+- Target: $${req.tradeSetup.target} (+${req.tradeSetup.targetPct}%)
+- Stop-loss: $${req.tradeSetup.stopLoss} (${req.tradeSetup.stopLossPct}%) below ${req.tradeSetup.stopReason}
+- Risk/Reward: ${req.tradeSetup.riskReward}:1`;
+
+  const message = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 300,
+    system:
+      "You are a professional momentum trader specializing in 1-2 day short-term trades. Analyze setups concisely with clear, actionable guidance. Focus on price action and key levels. Be direct and specific — traders need clarity, not caveats.",
+    messages: [
+      {
+        role: "user",
+        content: `Analyze this momentum trade setup for a 1-2 day hold:\n\n${prompt}\n\nProvide: (1) Why this setup is compelling or concerning, (2) Exact entry trigger to watch for, (3) Your stop-loss rationale and level, (4) Realistic 1-2 day price target and why, (5) The single biggest risk to monitor. Max 150 words. Be specific with price levels.`,
+      },
+    ],
+  });
+
+  const block = message.content[0];
+  return block.type === "text" ? block.text : "Analysis unavailable.";
+}
