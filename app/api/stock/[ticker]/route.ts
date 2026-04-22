@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { getDailyBars, getSnapshot, getTickerDetails } from "@/lib/polygon";
+import { getDailyBars, getTickerDetails } from "@/lib/polygon";
 import { scoreBars } from "@/lib/scoring";
 import { calculateEMA, calculateRSI, calculateAnchoredVWAP } from "@/lib/indicators";
 import { OHLCVBar, StockDetailResponse } from "@/types";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 function polygonToOHLCV(bar: { t: number; o: number; h: number; l: number; c: number; v: number }): OHLCVBar {
   return { time: Math.floor(bar.t / 1000), open: bar.o, high: bar.h, low: bar.l, close: bar.c, volume: bar.v };
@@ -13,10 +13,9 @@ function polygonToOHLCV(bar: { t: number; o: number; h: number; l: number; c: nu
 export async function GET(_req: Request, { params }: { params: Promise<{ ticker: string }> }) {
   const { ticker } = await params;
   try {
-    const [rawBars, spyRaw, snap, details] = await Promise.all([
+    const [rawBars, spyRaw, details] = await Promise.all([
       getDailyBars(ticker, 252),
       getDailyBars("SPY", 252),
-      getSnapshot(ticker).catch(() => null),
       getTickerDetails(ticker).catch(() => ({ name: ticker })),
     ]);
 
@@ -37,10 +36,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
     const avgVol = volumes.slice(-21, -1).reduce((a, b) => a + b, 0) / 20;
 
     const toSeries = (arr: number[]) =>
-      bars.map((b, i) => ({ time: b.time, value: isNaN(arr[i]) ? null : +arr[i].toFixed(4) })).filter((x) => x.value !== null) as Array<{ time: number; value: number }>;
+      bars
+        .map((b, i) => ({ time: b.time, value: isNaN(arr[i]) ? null : +arr[i].toFixed(4) }))
+        .filter((x) => x.value !== null) as Array<{ time: number; value: number }>;
 
-    const price = snap?.lastTrade?.p ?? bars[bars.length - 1].close;
-    const prevClose = snap?.prevDay?.c ?? bars[bars.length - 2]?.close ?? price;
+    const price = bars[bars.length - 1].close;
+    const prevClose = bars[bars.length - 2]?.close ?? price;
     const change = price - prevClose;
     const changePct = (change / prevClose) * 100;
 
@@ -74,6 +75,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
     return NextResponse.json(response);
   } catch (error) {
     console.error("Stock detail error:", error);
-    return NextResponse.json({ error: "Failed to fetch stock data" }, { status: 500 });
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

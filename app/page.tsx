@@ -12,8 +12,9 @@ type Tab = "stocks" | "crypto";
 async function fetchScanner(tab: Tab): Promise<ScannerResponse> {
   const url = tab === "crypto" ? "/api/crypto" : "/api/scanner";
   const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error("Failed to fetch picks");
-  return res.json();
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? "Failed to fetch picks");
+  return json;
 }
 
 export default function DashboardPage() {
@@ -93,8 +94,8 @@ export default function DashboardPage() {
             <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-red-400 font-semibold text-sm">Scanner error</p>
-              <p className="text-[#9ca3af] text-xs mt-1">{(error as Error)?.message}</p>
-              <p className="text-[#6b7280] text-xs mt-2">Make sure POLYGON_API_KEY is set in .env.local</p>
+              <p className="text-[#9ca3af] text-xs mt-1 font-mono">{(error as Error)?.message}</p>
+              <p className="text-[#6b7280] text-xs mt-2">Check that POLYGON_API_KEY is set in Vercel → Settings → Environment Variables, then redeploy.</p>
             </div>
           </div>
         )}

@@ -17,9 +17,10 @@ export async function GET() {
     };
     return NextResponse.json(response);
   } catch (error) {
-    console.error("Scanner error:", error);
+    const msg = error instanceof Error ? error.message : "Unknown error";
+    console.error("Scanner error:", msg);
     return NextResponse.json(
-      { error: "Scanner failed", picks: [], lastUpdated: new Date().toISOString(), marketOpen: false, nextScanIn: 300 },
+      { error: msg, picks: [], lastUpdated: new Date().toISOString(), marketOpen: false, nextScanIn: 300 },
       { status: 500 }
     );
   }
