@@ -3,7 +3,7 @@ import { runStockScan } from "@/lib/scanner";
 import { isMarketOpen } from "@/lib/polygon";
 import { ScannerResponse } from "@/types";
 
-export const revalidate = 300; // cache 5 minutes
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { runCryptoScan } from "@/lib/scanner";
 import { ScannerResponse } from "@/types";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
