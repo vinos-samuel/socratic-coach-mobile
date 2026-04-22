@@ -32,7 +32,8 @@ export async function GET() {
 
   return NextResponse.json({
     keyPresent: true,
-    keyPrefix: key.slice(0, 6) + "...",
+    keyLength: key.length,
+    keyPreview: key.slice(0, 6) + "..." + key.slice(-4),
     aggregatesTest: aggResult.ok ? "PASS" : `FAIL (HTTP ${aggResult.status})`,
     groupedDailyTest: groupResult.ok ? `PASS (${groupResult.count} tickers)` : `FAIL (HTTP ${groupResult.status}) — ${groupResult.error ?? ""}`,
     details: { aggResult, groupResult },
