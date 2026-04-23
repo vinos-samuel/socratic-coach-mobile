@@ -28,13 +28,13 @@ export default function DashboardPage() {
   });
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f]">
+    <div className="min-h-screen bg-[#0d1210]">
       {/* Top nav */}
-      <header className="border-b border-[#1e1e2e] bg-[#0d0d14]">
+      <header className="border-b border-[#1c2e1e] bg-[#0d1210]">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Zap className="w-5 h-5 text-indigo-400" />
-            <span className="text-white font-bold text-lg tracking-tight">Momentum Scout</span>
+            <Zap className="w-5 h-5 text-emerald-400" />
+            <span className="text-white font-bold text-lg tracking-tight">Stock Cur8d</span>
           </div>
           <div className="text-xs text-[#6b7280]">1-2 Day Trades</div>
         </div>
@@ -52,14 +52,14 @@ export default function DashboardPage() {
 
       <main className="max-w-4xl mx-auto px-4 py-6">
         {/* Tabs */}
-        <div className="flex gap-1 bg-[#13131a] border border-[#1e1e2e] rounded-xl p-1 mb-6 w-fit">
+        <div className="flex gap-1 bg-[#111a14] border border-[#1c2e1e] rounded-xl p-1 mb-6 w-fit">
           {(["stocks", "crypto"] as Tab[]).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all capitalize ${
                 tab === t
-                  ? "bg-indigo-600 text-white shadow-sm"
+                  ? "bg-emerald-700 text-white shadow-sm"
                   : "text-[#6b7280] hover:text-white"
               }`}
             >
@@ -70,10 +70,10 @@ export default function DashboardPage() {
 
         {/* Section header */}
         <div className="flex items-center gap-2 mb-4">
-          <TrendingUp className="w-5 h-5 text-indigo-400" />
+          <TrendingUp className="w-5 h-5 text-emerald-400" />
           <h1 className="text-white font-bold text-xl">Top Momentum Picks</h1>
           {data?.picks && (
-            <span className="text-xs bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-full px-2.5 py-0.5 font-medium">
+            <span className="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full px-2.5 py-0.5 font-medium">
               {data.picks.length} picks
             </span>
           )}
@@ -82,7 +82,7 @@ export default function DashboardPage() {
         {/* Loading */}
         {isLoading && (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
-            <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
+            <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin" />
             <p className="text-[#6b7280] text-sm">Scanning momentum across {tab === "stocks" ? "S&P 500" : "top crypto"}...</p>
             <p className="text-[#4b5563] text-xs">This takes ~20s on first load</p>
           </div>
@@ -119,6 +119,7 @@ export default function DashboardPage() {
 
         {/* Disclaimer */}
         <p className="text-[#4b5563] text-xs text-center mt-10 leading-relaxed">
+          Picks are scored 0–100 using RS Rating vs S&P 500, EMA stack alignment (9/21/50), volume surge, RSI zone (55–80), and anchored VWAP.
           For informational purposes only. Not financial advice. Past momentum does not guarantee future results.
           Always manage risk with a defined stop-loss.
         </p>

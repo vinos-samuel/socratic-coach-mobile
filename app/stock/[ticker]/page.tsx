@@ -28,9 +28,9 @@ export default function StockDetailPage({ params }: { params: Promise<{ ticker: 
   });
 
   return (
-    <div className="min-h-screen bg-[#0a0a0f]">
+    <div className="min-h-screen bg-[#0d1210]">
       {/* Header */}
-      <header className="border-b border-[#1e1e2e] bg-[#0d0d14] sticky top-0 z-10">
+      <header className="border-b border-[#1c2e1e] bg-[#0d1210] sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center gap-4">
           <Link href="/" className="text-[#6b7280] hover:text-white transition-colors">
             <ArrowLeft className="w-5 h-5" />
@@ -70,7 +70,7 @@ export default function StockDetailPage({ params }: { params: Promise<{ ticker: 
       {/* Loading */}
       {isLoading && (
         <div className="flex flex-col items-center justify-center py-32 gap-4">
-          <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
+          <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin" />
           <p className="text-[#6b7280] text-sm">Loading {upperTicker} analysis...</p>
         </div>
       )}
@@ -104,7 +104,7 @@ export default function StockDetailPage({ params }: { params: Promise<{ ticker: 
           <TradeCommentary pick={{ ticker: data.ticker, name: data.name, price: data.price, changePct: data.changePct, signals: data.signals, tradeSetup: data.tradeSetup, rsRating: data.rsRating, volumeRatio: data.volumeRatio, rsi: data.rsi, score: data.score, type: "stock", ruleBasedCommentary: data.ruleBasedCommentary }} />
 
           <p className="text-[#4b5563] text-xs text-center pb-6 leading-relaxed">
-            Not financial advice. Always use a stop-loss. Past momentum does not guarantee future results.
+            Picks scored using RS Rating, EMA stack (9/21/50), volume surge, RSI zone, and anchored VWAP. For informational purposes only. Not financial advice. Past momentum does not guarantee future results. Always manage risk with a defined stop-loss.
           </p>
         </main>
       )}

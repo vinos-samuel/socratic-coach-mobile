@@ -7,7 +7,7 @@ interface MomentumSignalsProps {
 
 export function MomentumSignals({ signals }: MomentumSignalsProps) {
   return (
-    <div className="bg-[#13131a] border border-[#1e1e2e] rounded-xl p-4">
+    <div className="bg-[#111a14] border border-[#1c2e1e] rounded-xl p-4">
       <h3 className="text-sm font-semibold text-[#6b7280] uppercase tracking-wider mb-3">
         Momentum Signals
       </h3>

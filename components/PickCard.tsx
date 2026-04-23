@@ -20,7 +20,7 @@ export function PickCard({ pick, rank }: PickCardProps) {
 
   return (
     <Link href={href}>
-      <div className="group relative bg-[#13131a] border border-[#1e1e2e] rounded-xl p-4 hover:border-indigo-500/50 hover:bg-[#15151f] transition-all duration-200 cursor-pointer active:scale-[0.98]">
+      <div className="group relative bg-[#111a14] border border-[#1c2e1e] rounded-xl p-4 hover:border-emerald-500/50 hover:bg-[#132018] transition-all duration-200 cursor-pointer active:scale-[0.98]">
         {/* Rank badge */}
         <div className="absolute top-3 right-3 text-xs font-mono text-[#6b7280]">#{rank}</div>
 
@@ -30,7 +30,7 @@ export function PickCard({ pick, rank }: PickCardProps) {
             <div className="flex items-center gap-2">
               <span className="text-white font-bold text-lg font-mono">{pick.ticker}</span>
               {pick.type === "crypto" && (
-                <span className="text-xs bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-full px-2 py-0.5">CRYPTO</span>
+                <span className="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full px-2 py-0.5">CRYPTO</span>
               )}
             </div>
             <div className="text-[#6b7280] text-xs mt-0.5 truncate max-w-[140px]">{pick.name}</div>
@@ -65,14 +65,14 @@ export function PickCard({ pick, rank }: PickCardProps) {
             </span>
           ))}
           {pick.emaCross921 && (
-            <span className="text-xs bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 rounded-md px-2 py-0.5 font-medium flex items-center gap-1">
+            <span className="text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-md px-2 py-0.5 font-medium flex items-center gap-1">
               <Zap className="w-3 h-3" /> Cross
             </span>
           )}
         </div>
 
         {/* Key metrics */}
-        <div className="grid grid-cols-3 gap-2 text-center text-xs border-t border-[#1e1e2e] pt-3">
+        <div className="grid grid-cols-3 gap-2 text-center text-xs border-t border-[#1c2e1e] pt-3">
           <div>
             <div className="text-[#6b7280]">RS</div>
             <div className="text-white font-mono font-semibold">{pick.rsRating}</div>
@@ -92,7 +92,7 @@ export function PickCard({ pick, rank }: PickCardProps) {
         </div>
 
         {/* CTA hint */}
-        <div className="mt-3 text-xs text-[#6b7280] group-hover:text-indigo-400 transition-colors text-center">
+        <div className="mt-3 text-xs text-[#6b7280] group-hover:text-emerald-400 transition-colors text-center">
           View full analysis →
         </div>
       </div>

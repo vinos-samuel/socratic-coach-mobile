@@ -12,7 +12,7 @@ export function TradeSetupCard({ setup, price }: TradeSetupCardProps) {
     setup.riskReward >= 1.5 ? "text-amber-400" : "text-red-400";
 
   return (
-    <div className="bg-[#13131a] border border-[#1e1e2e] rounded-xl p-4">
+    <div className="bg-[#111a14] border border-[#1c2e1e] rounded-xl p-4">
       <h3 className="text-sm font-semibold text-[#6b7280] uppercase tracking-wider mb-3">
         Trade Setup
       </h3>
@@ -56,7 +56,7 @@ export function TradeSetupCard({ setup, price }: TradeSetupCardProps) {
         </div>
 
         {/* R:R ratio */}
-        <div className="flex items-center justify-between bg-[#0f0f16] border border-[#1e1e2e] rounded-lg px-4 py-3">
+        <div className="flex items-center justify-between bg-[#0d1a10] border border-[#1c2e1e] rounded-lg px-4 py-3">
           <div className="flex items-center gap-2">
             <Scale className="w-4 h-4 text-[#6b7280]" />
             <span className="text-[#9ca3af] text-sm">Risk / Reward</span>

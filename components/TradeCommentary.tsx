@@ -46,7 +46,7 @@ export function TradeCommentary({ pick }: TradeCommentaryProps) {
   }
 
   return (
-    <div className="bg-[#13131a] border border-[#1e1e2e] rounded-xl p-4">
+    <div className="bg-[#111a14] border border-[#1c2e1e] rounded-xl p-4">
       <h3 className="text-sm font-semibold text-[#6b7280] uppercase tracking-wider mb-3">
         AI Analysis
       </h3>
@@ -58,10 +58,10 @@ export function TradeCommentary({ pick }: TradeCommentaryProps) {
 
       {/* Deep analysis result */}
       {deepAnalysis && (
-        <div className="bg-indigo-950/30 border border-indigo-500/20 rounded-lg p-4 mb-4">
+        <div className="bg-emerald-950/30 border border-emerald-500/20 rounded-lg p-4 mb-4">
           <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="w-4 h-4 text-indigo-400" />
-            <span className="text-indigo-400 text-xs font-semibold uppercase tracking-wide">Claude Deep Analysis</span>
+            <Sparkles className="w-4 h-4 text-emerald-400" />
+            <span className="text-emerald-400 text-xs font-semibold uppercase tracking-wide">Claude Deep Analysis</span>
           </div>
           <p className="text-[#e2e8f0] text-sm leading-relaxed italic">{deepAnalysis}</p>
         </div>
@@ -78,7 +78,7 @@ export function TradeCommentary({ pick }: TradeCommentaryProps) {
         <button
           onClick={fetchDeepAnalysis}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-indigo-900 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2.5 px-4 text-sm transition-colors"
+          className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-600 disabled:bg-emerald-950 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2.5 px-4 text-sm transition-colors"
         >
           {loading ? (
             <>

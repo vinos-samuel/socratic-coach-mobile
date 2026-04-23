@@ -20,7 +20,7 @@ interface StockChartProps {
 
 const OVERLAYS = [
   { key: "ema9", label: "9 EMA", color: "#f59e0b" },
-  { key: "ema21", label: "21 EMA", color: "#6366f1" },
+  { key: "ema21", label: "21 EMA", color: "#34d399" },
   { key: "ema50", label: "50 EMA", color: "#ec4899" },
   { key: "vwap", label: "VWAP", color: "#22d3ee" },
 ] as const;
@@ -38,11 +38,11 @@ export function StockChart({ data }: StockChartProps) {
   const overlaySeries = useRef<Partial<Record<OverlayKey, ISeriesApi<"Line">>>>({});
 
   const chartOptions = {
-    layout: { background: { type: ColorType.Solid, color: "#13131a" }, textColor: "#9ca3af" },
-    grid: { vertLines: { color: "#1e1e2e" }, horzLines: { color: "#1e1e2e" } },
+    layout: { background: { type: ColorType.Solid, color: "#111a14" }, textColor: "#9ca3af" },
+    grid: { vertLines: { color: "#1c2e1e" }, horzLines: { color: "#1c2e1e" } },
     crosshair: { mode: CrosshairMode.Normal },
-    rightPriceScale: { borderColor: "#1e1e2e" },
-    timeScale: { borderColor: "#1e1e2e", timeVisible: true },
+    rightPriceScale: { borderColor: "#1c2e1e" },
+    timeScale: { borderColor: "#1c2e1e", timeVisible: true },
   };
 
   useEffect(() => {
@@ -64,7 +64,7 @@ export function StockChart({ data }: StockChartProps) {
     // Overlay EMAs / VWAP
     const seriesMap: Record<OverlayKey, { data: Array<{ time: number; value: number }>; color: string }> = {
       ema9: { data: data.ema9Series, color: "#f59e0b" },
-      ema21: { data: data.ema21Series, color: "#6366f1" },
+      ema21: { data: data.ema21Series, color: "#34d399" },
       ema50: { data: data.ema50Series, color: "#ec4899" },
       vwap: { data: data.vwapSeries, color: "#22d3ee" },
     };
@@ -77,7 +77,7 @@ export function StockChart({ data }: StockChartProps) {
 
     // RSI chart
     rsiChart.current = createChart(rsiRef.current, { ...chartOptions, height: 100 });
-    const rsiLine = rsiChart.current.addSeries(LineSeries, { color: "#6366f1", lineWidth: 1, priceLineVisible: false });
+    const rsiLine = rsiChart.current.addSeries(LineSeries, { color: "#34d399", lineWidth: 1, priceLineVisible: false });
     rsiLine.setData(data.rsiSeries.map((d) => ({ time: t(d.time), value: d.value })));
     // RSI bands
     const upper = rsiChart.current.addSeries(LineSeries, { color: "#ef4444", lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });
@@ -137,17 +137,17 @@ export function StockChart({ data }: StockChartProps) {
   }
 
   return (
-    <div className="bg-[#13131a] border border-[#1e1e2e] rounded-xl overflow-hidden">
+    <div className="bg-[#111a14] border border-[#1c2e1e] rounded-xl overflow-hidden">
       {/* Overlay toggles */}
-      <div className="flex flex-wrap gap-2 px-4 py-3 border-b border-[#1e1e2e]">
+      <div className="flex flex-wrap gap-2 px-4 py-3 border-b border-[#1c2e1e]">
         {OVERLAYS.map(({ key, label, color }) => (
           <button
             key={key}
             onClick={() => toggleOverlay(key)}
             className={`text-xs px-2.5 py-1 rounded-md border font-medium transition-all ${
               active.has(key)
-                ? "border-transparent text-[#0a0a0f]"
-                : "border-[#1e1e2e] text-[#6b7280] bg-transparent"
+                ? "border-transparent text-[#0d1210]"
+                : "border-[#1c2e1e] text-[#6b7280] bg-transparent"
             }`}
             style={active.has(key) ? { backgroundColor: color } : {}}
           >
@@ -160,13 +160,13 @@ export function StockChart({ data }: StockChartProps) {
       <div ref={priceRef} className="w-full" />
 
       {/* RSI label + chart */}
-      <div className="border-t border-[#1e1e2e]">
+      <div className="border-t border-[#1c2e1e]">
         <div className="px-4 py-1 text-xs text-[#6b7280] font-medium">RSI (14)</div>
         <div ref={rsiRef} className="w-full" />
       </div>
 
       {/* Volume label + chart */}
-      <div className="border-t border-[#1e1e2e]">
+      <div className="border-t border-[#1c2e1e]">
         <div className="px-4 py-1 text-xs text-[#6b7280] font-medium">Volume</div>
         <div ref={volRef} className="w-full" />
       </div>

@@ -24,7 +24,7 @@ export function MarketStatus({ marketOpen, lastUpdated, onRefresh, isRefreshing 
   const elapsedText = elapsed < 60 ? `${elapsed}s ago` : `${Math.floor(elapsed / 60)}m ago`;
 
   return (
-    <div className="flex items-center justify-between px-4 py-2.5 bg-[#0d0d14] border-b border-[#1e1e2e] sticky top-0 z-10">
+    <div className="flex items-center justify-between px-4 py-2.5 bg-[#0d1210] border-b border-[#1c2e1e] sticky top-0 z-10">
       <div className="flex items-center gap-2">
         <span
           className={`w-2 h-2 rounded-full ${marketOpen ? "bg-green-400 shadow-[0_0_6px_#22c55e]" : "bg-[#6b7280]"}`}
