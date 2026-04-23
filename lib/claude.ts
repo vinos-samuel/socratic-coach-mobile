@@ -30,7 +30,7 @@ TRADE SETUP (rule-based):
     messages: [
       {
         role: "user",
-        content: `Analyze this momentum trade setup for a 1-2 day hold:\n\n${prompt}\n\nProvide: (1) Why this setup is compelling or concerning, (2) Exact entry trigger to watch for, (3) Your stop-loss rationale and level, (4) Realistic 1-2 day price target and why, (5) The single biggest risk to monitor. Max 150 words. Be specific with price levels.`,
+        content: `Analyze this momentum trade setup for a 1-2 day hold:\n\n${prompt}\n\nRespond in EXACTLY this format — no markdown, no bullet points, no extra text:\nSETUP: <why this setup is compelling or concerning, 1-2 sentences>\nENTRY: <exact entry trigger with specific price level>\nSTOP: <stop level and one-sentence rationale>\nTARGET: <1-2 day price target with reasoning>\nRISK: <the single biggest risk to monitor>`,
       },
     ],
   });

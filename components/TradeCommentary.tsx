@@ -1,11 +1,36 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, TrendingUp, Crosshair, ShieldAlert, Target, AlertTriangle } from "lucide-react";
 import { MomentumPick, DeepAnalysisRequest } from "@/types";
 
 interface TradeCommentaryProps {
   pick: Pick<MomentumPick, "ticker" | "name" | "price" | "changePct" | "signals" | "tradeSetup" | "rsRating" | "volumeRatio" | "rsi" | "score" | "type" | "ruleBasedCommentary">;
+}
+
+const SECTIONS = [
+  { key: "SETUP",  label: "Setup",        Icon: TrendingUp,   color: "text-emerald-400", bg: "bg-emerald-500/5",  border: "border-emerald-500/20" },
+  { key: "ENTRY",  label: "Entry Trigger", Icon: Crosshair,    color: "text-emerald-300", bg: "bg-emerald-500/5",  border: "border-emerald-500/20" },
+  { key: "STOP",   label: "Stop-Loss",     Icon: ShieldAlert,  color: "text-red-400",     bg: "bg-red-500/5",      border: "border-red-500/20"     },
+  { key: "TARGET", label: "Target",        Icon: Target,       color: "text-sky-400",     bg: "bg-sky-500/5",      border: "border-sky-500/20"     },
+  { key: "RISK",   label: "Key Risk",      Icon: AlertTriangle,color: "text-amber-400",   bg: "bg-amber-500/5",    border: "border-amber-500/20"   },
+] as const;
+
+type SectionKey = (typeof SECTIONS)[number]["key"];
+
+function parseSections(text: string): Partial<Record<SectionKey, string>> {
+  const result: Partial<Record<SectionKey, string>> = {};
+  const keys = SECTIONS.map((s) => s.key);
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    const next = keys[i + 1];
+    const pattern = next
+      ? new RegExp(`${key}:\\s*(.+?)(?=${next}:)`, "s")
+      : new RegExp(`${key}:\\s*(.+)$`, "s");
+    const match = text.match(pattern);
+    if (match) result[key] = match[1].trim();
+  }
+  return result;
 }
 
 export function TradeCommentary({ pick }: TradeCommentaryProps) {
@@ -45,6 +70,9 @@ export function TradeCommentary({ pick }: TradeCommentaryProps) {
     }
   }
 
+  const sections = deepAnalysis ? parseSections(deepAnalysis) : null;
+  const hasSections = sections && Object.keys(sections).length >= 3;
+
   return (
     <div className="bg-[#111a14] border border-[#1c2e1e] rounded-xl p-4">
       <h3 className="text-sm font-semibold text-[#6b7280] uppercase tracking-wider mb-3">
@@ -58,12 +86,32 @@ export function TradeCommentary({ pick }: TradeCommentaryProps) {
 
       {/* Deep analysis result */}
       {deepAnalysis && (
-        <div className="bg-emerald-950/30 border border-emerald-500/20 rounded-lg p-4 mb-4">
-          <div className="flex items-center gap-2 mb-2">
+        <div className="mb-4">
+          <div className="flex items-center gap-2 mb-3">
             <Sparkles className="w-4 h-4 text-emerald-400" />
             <span className="text-emerald-400 text-xs font-semibold uppercase tracking-wide">Claude Deep Analysis</span>
           </div>
-          <p className="text-[#e2e8f0] text-sm leading-relaxed italic">{deepAnalysis}</p>
+
+          {hasSections ? (
+            <div className="space-y-2">
+              {SECTIONS.map(({ key, label, Icon, color, bg, border }) => {
+                const text = sections[key];
+                if (!text) return null;
+                return (
+                  <div key={key} className={`flex gap-3 rounded-lg px-3 py-2.5 border ${bg} ${border}`}>
+                    <Icon className={`w-4 h-4 flex-shrink-0 mt-0.5 ${color}`} />
+                    <div className="min-w-0">
+                      <div className={`text-xs font-semibold uppercase tracking-wide mb-0.5 ${color}`}>{label}</div>
+                      <p className="text-[#d1d5db] text-sm leading-relaxed">{text}</p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            // Fallback: render raw text if model didn't follow the format
+            <p className="text-[#d1d5db] text-sm leading-relaxed">{deepAnalysis}</p>
+          )}
         </div>
       )}
 
