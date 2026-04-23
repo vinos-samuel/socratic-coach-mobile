@@ -55,7 +55,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
       volumeSeries: bars.map((b, i) => ({
         time: b.time,
         value: b.volume,
-        color: b.close >= (bars[i - 1]?.close ?? b.close) ? "#22c55e33" : "#ef444433",
+        color: b.close >= (bars[i - 1]?.close ?? b.close) ? "#22c55e99" : "#ef444499",
       })),
       avgVolumeLine: +avgVol.toFixed(4),
       signals: scored.signals,

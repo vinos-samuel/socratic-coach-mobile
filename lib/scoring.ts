@@ -6,6 +6,7 @@ import {
   calculateVolumeRatio,
   calculateRSRating,
   calculateAnchoredVWAP,
+  calculateATR,
   isEMAStackAligned,
   hasEMA921BullishCross,
 } from "./indicators";
@@ -46,6 +47,7 @@ export function scoreBars(
   const volumeRatio = calculateVolumeRatio(volumes, 20);
   const rsRating = calculateRSRating(closes, spyBars.map((b) => b.close), closes.length);
   const anchoredVwap = calculateAnchoredVWAP(bars);
+  const atr = calculateATR(bars, 14);
 
   const lastClose = closes[closes.length - 1];
   const lastEma9 = ema9[ema9.length - 1];
@@ -59,100 +61,65 @@ export function scoreBars(
 
   // Scoring
   let score = 0;
-  score += Math.min(35, rsRating * 0.35); // RS Rating: up to 35 pts
-  score += emaStack ? 15 : lastClose > lastEma50 ? 7 : 0; // EMA stack: up to 15
-  score += lastClose > lastEma21 ? 5 : 0; // Above 21 EMA: 5 pts
-  score += lastClose > lastEma9 ? 5 : 0; // Above 9 EMA: 5 pts
-  score += Math.min(20, (volumeRatio - 1) * 10); // Volume: up to 20 pts at 3x
+  score += Math.min(35, rsRating * 0.35);
+  score += emaStack ? 15 : lastClose > lastEma50 ? 7 : 0;
+  score += lastClose > lastEma21 ? 5 : 0;
+  score += lastClose > lastEma9 ? 5 : 0;
+  score += Math.min(20, (volumeRatio - 1) * 10);
   const rsiScore = lastRsi >= 55 && lastRsi <= 80 ? 10 : lastRsi >= 50 && lastRsi < 55 ? 5 : 0;
-  score += rsiScore; // RSI zone: up to 10 pts
-  score += emaCross921 ? 5 : 0; // Recent 9/21 cross: 5 pts
-  score += aboveVwap ? 5 : 0; // Above anchored VWAP: 5 pts
+  score += rsiScore;
+  score += emaCross921 ? 5 : 0;
+  score += aboveVwap ? 5 : 0;
   score = Math.round(Math.max(0, Math.min(100, score)));
 
   const signals = buildSignals(
-    rsRating,
-    emaStack,
-    emaCross921,
-    volumeRatio,
-    lastRsi,
-    aboveVwap,
-    lastClose,
-    lastEma9,
-    lastEma21,
-    lastEma50,
-    anchoredVwap
+    rsRating, emaStack, emaCross921, volumeRatio, lastRsi, aboveVwap,
+    lastClose, lastEma9, lastEma21, lastEma50, anchoredVwap
   );
 
-  const tradeSetup = buildTradeSetup(lastClose, lastEma21, lastEma50, anchoredVwap);
+  const tradeSetup = buildTradeSetup(lastClose, lastEma9, atr, anchoredVwap);
   const ruleBasedCommentary = buildCommentary(ticker, name, score, rsRating, volumeRatio, lastRsi, tradeSetup, signals);
 
   return {
-    score,
-    rsRating,
-    volumeRatio,
-    rsi: lastRsi,
-    emaStack,
-    emaCross921,
-    aboveVwap,
-    anchoredVwap,
-    ema9,
-    ema21,
-    ema50,
-    rsiSeries,
-    signals,
-    tradeSetup,
-    ruleBasedCommentary,
+    score, rsRating, volumeRatio, rsi: lastRsi,
+    emaStack, emaCross921, aboveVwap, anchoredVwap,
+    ema9, ema21, ema50, rsiSeries, signals, tradeSetup, ruleBasedCommentary,
   };
 }
 
 function buildSignals(
-  rsRating: number,
-  emaStack: boolean,
-  emaCross921: boolean,
-  volumeRatio: number,
-  rsi: number,
-  aboveVwap: boolean,
-  price: number,
-  ema9: number,
-  ema21: number,
-  ema50: number,
-  vwap: number | null
+  rsRating: number, emaStack: boolean, emaCross921: boolean, volumeRatio: number,
+  rsi: number, aboveVwap: boolean, price: number, ema9: number, ema21: number,
+  ema50: number, vwap: number | null
 ): MomentumSignal[] {
   return [
     {
-      name: "emaStack",
-      label: "EMA Stack",
+      name: "emaStack", label: "EMA Stack",
       value: emaStack ? "9 > 21 > 50, all rising" : `Price vs EMAs: ${price > ema50 ? "above 50" : "below 50"}`,
       status: emaStack ? "pass" : price > ema50 ? "warn" : "fail",
     },
     {
-      name: "rsRating",
-      label: "RS Rating",
+      name: "rsRating", label: "RS Rating",
       value: `${rsRating} / 100 vs S&P 500`,
       status: rsRating >= 80 ? "pass" : rsRating >= 60 ? "warn" : "fail",
     },
     {
-      name: "volume",
-      label: "Volume",
+      name: "volume", label: "Volume",
       value: `${volumeRatio.toFixed(1)}x 20-day average`,
       status: volumeRatio >= 1.5 ? "pass" : volumeRatio >= 1.0 ? "warn" : "fail",
     },
     {
-      name: "rsi",
-      label: "RSI (14)",
+      name: "rsi", label: "RSI (14)",
       value: `${rsi.toFixed(0)} ${rsi >= 55 && rsi <= 80 ? "— momentum zone" : rsi > 80 ? "— overbought" : "— below zone"}`,
       status: rsi >= 55 && rsi <= 80 ? "pass" : rsi >= 50 ? "warn" : "fail",
     },
     {
-      name: "emaCross",
-      label: "9/21 EMA Cross",
+      name: "emaCross", label: "9/21 EMA Cross",
       value: emaCross921 ? "Bullish cross (last 4 bars)" : "No recent cross",
       status: emaCross921 ? "pass" : price > ema21 ? "warn" : "fail",
     },
     {
-      name: "vwap",
-      label: "Anchored VWAP",
+      name: "vwap", label: "Anchored VWAP",
       value: vwap ? `Price ${aboveVwap ? "above" : "below"} VWAP at $${vwap.toFixed(2)}` : "Insufficient data",
       status: aboveVwap ? "pass" : "fail",
     },
@@ -161,42 +128,45 @@ function buildSignals(
 
 function buildTradeSetup(
   price: number,
-  ema21: number,
-  ema50: number,
+  ema9: number,
+  atr: number,
   vwap: number | null
 ): TradeSetup {
-  const entryLow = price * 0.99;
-  const entryHigh = price * 1.005;
-  const supportLevel = Math.max(ema21, vwap ?? ema50);
-  const stopLoss = Math.min(supportLevel * 0.99, price * 0.95);
-  const stopLossPct = ((stopLoss - price) / price) * 100;
-  const targetPct = Math.abs(stopLossPct) * 1.6; // ~1.6:1 R:R minimum
-  const target = price * (1 + targetPct / 100);
-  const riskReward = Math.abs(targetPct / stopLossPct);
-  const stopReason = vwap && supportLevel === vwap * 0.99 ? "anchored VWAP" : "21-day EMA";
+  // Entry: current price or pullback to 9 EMA
+  const entryLow = +Math.min(price * 0.999, ema9 * 1.002).toFixed(2);
+  const entryHigh = +(price * 1.004).toFixed(2);
+
+  // Stop: 1.5x ATR below entry, clamped to 2.5%–5% of price
+  // Keeps stop tight enough for 1-2 day trades but not artificially small
+  const atrStop = atr > 0 ? atr * 1.5 : price * 0.03;
+  const stopDollar = Math.min(Math.max(atrStop, price * 0.025), price * 0.05);
+  const stopLoss = +(price - stopDollar).toFixed(2);
+  const stopLossPct = +((stopLoss - price) / price * 100).toFixed(1);
+
+  // Target: 2.5x ATR above entry, minimum 2:1 R:R
+  const targetDollar = Math.max(atr * 2.5, stopDollar * 2.0);
+  const target = +(price + targetDollar).toFixed(2);
+  const targetPct = +((target - price) / price * 100).toFixed(1);
+  const riskReward = +(targetPct / Math.abs(stopLossPct)).toFixed(2);
+
+  const stopReason = vwap && price > vwap ? "anchored VWAP / 9 EMA" : "9-day EMA";
 
   return {
-    entryLow: +entryLow.toFixed(2),
-    entryHigh: +entryHigh.toFixed(2),
-    entryTrigger: `Continuation above $${entryHigh.toFixed(2)} or pullback to 9 EMA`,
-    target: +target.toFixed(2),
-    targetPct: +targetPct.toFixed(1),
-    stopLoss: +stopLoss.toFixed(2),
-    stopLossPct: +stopLossPct.toFixed(1),
-    riskReward: +riskReward.toFixed(2),
+    entryLow,
+    entryHigh,
+    entryTrigger: `Breakout above $${entryHigh} with volume, or pullback to 9 EMA at $${ema9.toFixed(2)}`,
+    target,
+    targetPct,
+    stopLoss,
+    stopLossPct,
+    riskReward,
     stopReason,
   };
 }
 
 function buildCommentary(
-  ticker: string,
-  name: string,
-  score: number,
-  rs: number,
-  volRatio: number,
-  rsi: number,
-  setup: TradeSetup,
-  signals: MomentumSignal[]
+  ticker: string, name: string, score: number, rs: number,
+  volRatio: number, rsi: number, setup: TradeSetup, signals: MomentumSignal[]
 ): string {
   const passCount = signals.filter((s) => s.status === "pass").length;
   const strength = score >= 80 ? "strong" : score >= 65 ? "solid" : "developing";

@@ -1,5 +1,18 @@
 import { OHLCVBar } from "@/types";
 
+export function calculateATR(bars: OHLCVBar[], period = 14): number {
+  if (bars.length < period + 1) return 0;
+  const trs: number[] = [];
+  for (let i = 1; i < bars.length; i++) {
+    trs.push(Math.max(
+      bars[i].high - bars[i].low,
+      Math.abs(bars[i].high - bars[i - 1].close),
+      Math.abs(bars[i].low - bars[i - 1].close)
+    ));
+  }
+  return trs.slice(-period).reduce((a, b) => a + b, 0) / period;
+}
+
 export function calculateEMA(closes: number[], period: number): number[] {
   const k = 2 / (period + 1);
   const result: number[] = new Array(closes.length).fill(NaN);

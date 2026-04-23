@@ -1,6 +1,6 @@
 import { MomentumPick, OHLCVBar } from "@/types";
 import { getDailyBars, getTickerDetails, PolygonBar } from "./polygon";
-import { getCoinbaseDailyCandles, TOP_CRYPTO_PAIRS } from "./coinbase";
+import { getCoinbase4hrCandles, TOP_CRYPTO_PAIRS } from "./coinbase";
 import { scoreBars } from "./scoring";
 
 // Curated high-momentum S&P 500 candidates — all accessible via individual aggregate calls
@@ -44,7 +44,7 @@ export async function runStockScan(limit = 10): Promise<MomentumPick[]> {
         const rawBars = await getDailyBars(ticker, 252);
         const bars = rawBars.map(polygonToOHLCV);
         const scored = scoreBars(bars, spyBars, ticker, ticker);
-        if (!scored || scored.score < 55) return;
+        if (!scored || scored.score < 65) return;
 
         const lastBar = bars[bars.length - 1];
         const prevBar = bars[bars.length - 2];
@@ -101,11 +101,11 @@ export async function runCryptoScan(limit = 6): Promise<MomentumPick[]> {
   await Promise.allSettled(
     TOP_CRYPTO_PAIRS.map(async ({ productId, name }) => {
       try {
-        const candles = await getCoinbaseDailyCandles(productId, 100);
+        const candles = await getCoinbase4hrCandles(productId, 50);
         if (candles.length < 55) return;
 
         const scored = scoreBars(candles, candles, productId, name);
-        if (!scored || scored.score < 50) return;
+        if (!scored || scored.score < 40) return;
 
         const price = candles[candles.length - 1].close;
         const prevPrice = candles[candles.length - 2]?.close ?? price;

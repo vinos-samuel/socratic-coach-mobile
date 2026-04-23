@@ -23,7 +23,7 @@ TRADE SETUP (rule-based):
 - Risk/Reward: ${req.tradeSetup.riskReward}:1`;
 
   const message = await client.messages.create({
-    model: "claude-sonnet-4-6",
+    model: "claude-opus-4-7",
     max_tokens: 300,
     system:
       "You are a professional momentum trader specializing in 1-2 day short-term trades. Analyze setups concisely with clear, actionable guidance. Focus on price action and key levels. Be direct and specific — traders need clarity, not caveats.",

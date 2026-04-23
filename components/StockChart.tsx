@@ -89,7 +89,7 @@ export function StockChart({ data }: StockChartProps) {
     rsiChart.current.timeScale().fitContent();
 
     // Volume chart
-    volChart.current = createChart(volRef.current, { ...chartOptions, height: 80 });
+    volChart.current = createChart(volRef.current, { ...chartOptions, height: 110 });
     const volSeries = volChart.current.addSeries(HistogramSeries, { color: "#22c55e33" });
     volSeries.setData(data.volumeSeries.map((d) => ({ time: t(d.time), value: d.value, color: d.color })));
     const avgLine = volChart.current.addSeries(LineSeries, { color: "#f59e0b", lineWidth: 1, lineStyle: 2, priceLineVisible: false, lastValueVisible: false });

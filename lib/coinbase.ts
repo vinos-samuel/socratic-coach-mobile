@@ -31,19 +31,24 @@ export async function getCoinbaseDailyCandles(
 ): Promise<CoinbaseCandle[]> {
   const end = Math.floor(Date.now() / 1000);
   const start = end - days * 86400;
-  // granularity 86400 = 1 day
   const url = `${BASE}/products/${productId}/candles?start=${start}&end=${end}&granularity=86400`;
-  // Coinbase returns [[time, low, high, open, close, volume], ...]
   const raw = await get<number[][]>(url);
   return raw
-    .map(([t, l, h, o, c, v]) => ({
-      time: t,
-      open: o,
-      high: h,
-      low: l,
-      close: c,
-      volume: v,
-    }))
+    .map(([t, l, h, o, c, v]) => ({ time: t, open: o, high: h, low: l, close: c, volume: v }))
+    .sort((a, b) => a.time - b.time);
+}
+
+// 4-hour candles — more signals than daily, max 300 per call (50 days @ 6/day = 300)
+export async function getCoinbase4hrCandles(
+  productId: string,
+  days = 50
+): Promise<CoinbaseCandle[]> {
+  const end = Math.floor(Date.now() / 1000);
+  const start = end - Math.min(days, 50) * 86400; // Coinbase caps at 300 candles
+  const url = `${BASE}/products/${productId}/candles?start=${start}&end=${end}&granularity=14400`;
+  const raw = await get<number[][]>(url);
+  return raw
+    .map(([t, l, h, o, c, v]) => ({ time: t, open: o, high: h, low: l, close: c, volume: v }))
     .sort((a, b) => a.time - b.time);
 }
 
