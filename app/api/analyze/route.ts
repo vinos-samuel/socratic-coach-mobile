@@ -33,6 +33,14 @@ const schema = z.object({
 });
 
 export async function POST(req: Request) {
+  // Block requests not coming from the app's own domain
+  const origin = req.headers.get("origin") ?? "";
+  const host = req.headers.get("host") ?? "";
+  const allowedHosts = process.env.ALLOWED_ORIGIN ?? host;
+  if (origin && !origin.includes(allowedHosts) && !origin.includes("localhost")) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   try {
     const body = await req.json();
     const data = schema.parse(body) as DeepAnalysisRequest;
