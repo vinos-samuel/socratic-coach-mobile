@@ -61,7 +61,8 @@ export interface ScannerResponse {
   picks: MomentumPick[];
   lastUpdated: string;
   marketOpen: boolean;
-  nextScanIn: number; // seconds
+  nextScanIn: number; // seconds until next allowed scan
+  scanLockedUntil: string; // ISO — when cache expires
 }
 
 export interface StockDetailResponse {
@@ -85,6 +86,9 @@ export interface StockDetailResponse {
   rsRating: number;
   volumeRatio: number;
   rsi: number;
+  livePrice?: number;      // last trade price if Polygon returns it
+  priceSource: "live" | "eod";
+  dataAsOf: string;        // e.g. "Apr 23" — date of last complete bar
 }
 
 export interface DeepAnalysisRequest {

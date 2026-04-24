@@ -4,7 +4,7 @@ import { scoreBars } from "@/lib/scoring";
 import { calculateEMA, calculateRSI, calculateAnchoredVWAP } from "@/lib/indicators";
 import { OHLCVBar, StockDetailResponse } from "@/types";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ ticker: string }> }) {
   const { ticker } = await params;
@@ -34,10 +34,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
     const toSeries = (arr: number[]) =>
       bars.map((b, i) => ({ time: b.time, value: isNaN(arr[i]) ? null : +arr[i].toFixed(6) })).filter((x) => x.value !== null) as Array<{ time: number; value: number }>;
 
-    const price = bars[bars.length - 1].close;
+    const lastBar = bars[bars.length - 1];
+    const price = lastBar.close;
     const prevPrice = bars[bars.length - 2]?.close ?? price;
     const change = price - prevPrice;
     const changePct = (change / prevPrice) * 100;
+    const dataAsOf = new Date(lastBar.time * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
     const response: StockDetailResponse = {
       ticker: upperTicker,
@@ -64,9 +66,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
       rsRating: scored.rsRating,
       volumeRatio: scored.volumeRatio,
       rsi: scored.rsi,
+      priceSource: "live", // Coinbase returns real-time data
+      dataAsOf,
     };
 
-    return NextResponse.json(response);
+    return NextResponse.json(response, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error) {
     console.error("Crypto detail error:", error);
     return NextResponse.json({ error: "Failed to fetch crypto data" }, { status: 500 });

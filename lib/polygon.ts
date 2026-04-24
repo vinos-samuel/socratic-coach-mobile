@@ -41,6 +41,17 @@ export async function getDailyBars(ticker: string, days = 252): Promise<PolygonB
   return (data.results ?? []).slice(-days);
 }
 
+// Last trade price — available on Polygon free tier, returns null gracefully if not
+export async function getLastTradePrice(ticker: string): Promise<number | null> {
+  try {
+    const url = `${BASE}/v2/last/trade/${ticker}?apiKey=${key()}`;
+    const data = await get<{ results: { p: number } }>(url);
+    return data.results?.p ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getTickerDetails(ticker: string): Promise<{ name: string }> {
   const url = `${BASE}/v3/reference/tickers/${ticker}?apiKey=${key()}`;
   const data = await get<{ results: { name: string } }>(url);

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDailyBars, getTickerDetails } from "@/lib/polygon";
+import { getDailyBars, getTickerDetails, getLastTradePrice } from "@/lib/polygon";
 import { scoreBars } from "@/lib/scoring";
 import { calculateEMA, calculateRSI, calculateAnchoredVWAP } from "@/lib/indicators";
 import { OHLCVBar, StockDetailResponse } from "@/types";
@@ -13,10 +13,11 @@ function polygonToOHLCV(bar: { t: number; o: number; h: number; l: number; c: nu
 export async function GET(_req: Request, { params }: { params: Promise<{ ticker: string }> }) {
   const { ticker } = await params;
   try {
-    const [rawBars, spyRaw, details] = await Promise.all([
+    const [rawBars, spyRaw, details, livePrice] = await Promise.all([
       getDailyBars(ticker, 252),
       getDailyBars("SPY", 252),
       getTickerDetails(ticker).catch(() => ({ name: ticker })),
+      getLastTradePrice(ticker),
     ]);
 
     const bars = rawBars.map(polygonToOHLCV);
@@ -40,15 +41,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
         .map((b, i) => ({ time: b.time, value: isNaN(arr[i]) ? null : +arr[i].toFixed(4) }))
         .filter((x) => x.value !== null) as Array<{ time: number; value: number }>;
 
-    const price = bars[bars.length - 1].close;
-    const prevClose = bars[bars.length - 2]?.close ?? price;
-    const change = price - prevClose;
+    const lastBar = bars[bars.length - 1];
+    const prevClose = bars[bars.length - 2]?.close ?? lastBar.close;
+    const eodPrice = lastBar.close;
+    const displayPrice = livePrice ?? eodPrice;
+    const change = displayPrice - prevClose;
     const changePct = (change / prevClose) * 100;
+    const dataAsOf = new Date(lastBar.time * 1000).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
     const response: StockDetailResponse = {
       ticker,
       name: details.name,
-      price: +price.toFixed(2),
+      price: +displayPrice.toFixed(2),
       change: +change.toFixed(2),
       changePct: +changePct.toFixed(2),
       score: scored.score,
@@ -70,9 +74,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
       rsRating: scored.rsRating,
       volumeRatio: scored.volumeRatio,
       rsi: scored.rsi,
+      livePrice: livePrice ? +livePrice.toFixed(2) : undefined,
+      priceSource: livePrice ? "live" : "eod",
+      dataAsOf,
     };
 
-    return NextResponse.json(response);
+    return NextResponse.json(response, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error) {
     console.error("Stock detail error:", error);
     const msg = error instanceof Error ? error.message : "Unknown error";

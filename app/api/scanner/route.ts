@@ -1,27 +1,46 @@
 import { NextResponse } from "next/server";
 import { runStockScan } from "@/lib/scanner";
 import { isMarketOpen } from "@/lib/polygon";
-import { ScannerResponse } from "@/types";
+import { MomentumPick, ScannerResponse } from "@/types";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+const CACHE_TTL = 30 * 60 * 1000; // 30 minutes — picks stay locked within this window
+let stockCache: { picks: MomentumPick[]; ts: number } | null = null;
+
+export async function GET(req: Request) {
+  const forceRefresh = new URL(req.url).searchParams.get("refresh") === "1";
+  const now = Date.now();
+
+  if (!forceRefresh && stockCache && now - stockCache.ts < CACHE_TTL) {
+    const nextScanIn = Math.round((CACHE_TTL - (now - stockCache.ts)) / 1000);
+    const response: ScannerResponse = {
+      picks: stockCache.picks,
+      lastUpdated: new Date(stockCache.ts).toISOString(),
+      marketOpen: isMarketOpen(),
+      nextScanIn,
+      scanLockedUntil: new Date(stockCache.ts + CACHE_TTL).toISOString(),
+    };
+    return NextResponse.json(response, { headers: { "Cache-Control": "no-store" } });
+  }
+
   try {
     const picks = await runStockScan(10);
-    const marketOpen = isMarketOpen();
+    stockCache = { picks, ts: now };
     const response: ScannerResponse = {
       picks,
       lastUpdated: new Date().toISOString(),
-      marketOpen,
-      nextScanIn: 300,
+      marketOpen: isMarketOpen(),
+      nextScanIn: CACHE_TTL / 1000,
+      scanLockedUntil: new Date(now + CACHE_TTL).toISOString(),
     };
-    return NextResponse.json(response);
+    return NextResponse.json(response, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     const msg = error instanceof Error ? error.message : "Unknown error";
     console.error("Scanner error:", msg);
     return NextResponse.json(
-      { error: msg, picks: [], lastUpdated: new Date().toISOString(), marketOpen: false, nextScanIn: 300 },
-      { status: 500 }
+      { error: msg, picks: [], lastUpdated: new Date().toISOString(), marketOpen: false, nextScanIn: 300, scanLockedUntil: new Date().toISOString() },
+      { status: 500, headers: { "Cache-Control": "no-store" } }
     );
   }
 }

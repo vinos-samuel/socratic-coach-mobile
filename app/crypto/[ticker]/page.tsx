@@ -45,8 +45,11 @@ export default function CryptoDetailPage({ params }: { params: Promise<{ ticker:
                 <div className="text-[#6b7280] text-xs">{data.name}</div>
               </div>
               <div className="text-right">
-                <div className="text-white font-bold text-xl font-mono">
-                  ${data.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: data.price > 100 ? 2 : 4 })}
+                <div className="flex items-baseline gap-1.5">
+                  <span className="text-white font-bold text-xl font-mono">
+                    ${data.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: data.price > 100 ? 2 : 4 })}
+                  </span>
+                  <span className="text-[10px] font-mono px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-400">LIVE</span>
                 </div>
                 <div className={`flex items-center justify-end gap-1 text-sm font-semibold ${data.changePct >= 0 ? "text-green-400" : "text-red-400"}`}>
                   {data.changePct >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}

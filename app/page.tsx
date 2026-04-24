@@ -9,8 +9,9 @@ import { MarketStatus } from "@/components/MarketStatus";
 
 type Tab = "stocks" | "crypto";
 
-async function fetchScanner(tab: Tab): Promise<ScannerResponse> {
-  const url = tab === "crypto" ? "/api/crypto" : "/api/scanner";
+async function fetchScanner(tab: Tab, forceRefresh = false): Promise<ScannerResponse> {
+  const base = tab === "crypto" ? "/api/crypto" : "/api/scanner";
+  const url = forceRefresh ? `${base}?refresh=1` : base;
   const res = await fetch(url, { cache: "no-store" });
   const json = await res.json();
   if (!res.ok) throw new Error(json.error ?? "Failed to fetch picks");
@@ -19,13 +20,22 @@ async function fetchScanner(tab: Tab): Promise<ScannerResponse> {
 
 export default function DashboardPage() {
   const [tab, setTab] = useState<Tab>("stocks");
+  const [forceRefresh, setForceRefresh] = useState(false);
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery<ScannerResponse>({
     queryKey: ["scanner", tab],
-    queryFn: () => fetchScanner(tab),
-    staleTime: 4 * 60 * 1000,
-    refetchInterval: 5 * 60 * 1000,
+    queryFn: () => fetchScanner(tab, forceRefresh),
+    staleTime: 29 * 60 * 1000, // treat as fresh for 29 min — no auto background refetch
+    refetchOnWindowFocus: false,
   });
+
+  function handleRefresh() {
+    const lockedUntil = data?.scanLockedUntil ? new Date(data.scanLockedUntil).getTime() : 0;
+    const isLocked = Date.now() < lockedUntil;
+    setForceRefresh(!isLocked); // only bypass cache if the lock has expired
+    refetch();
+    setForceRefresh(false);
+  }
 
   return (
     <div className="min-h-screen bg-[#0d1210]">
@@ -45,7 +55,8 @@ export default function DashboardPage() {
         <MarketStatus
           marketOpen={data.marketOpen}
           lastUpdated={data.lastUpdated}
-          onRefresh={() => refetch()}
+          scanLockedUntil={data.scanLockedUntil}
+          onRefresh={handleRefresh}
           isRefreshing={isFetching}
         />
       )}
