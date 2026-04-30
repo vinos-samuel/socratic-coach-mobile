@@ -97,6 +97,12 @@ async function runScan(
   const benchmarkBars = enrichBarsWithToday(benchmarkRaw.map(polygonToOHLCV), benchmarkQuote);
   if (benchmarkBars.length < 55) throw new Error(`Could not fetch ${benchmarkTicker} baseline data`);
 
+  // Last date Polygon has for the benchmark (before Finnhub enrichment) — use as the
+  // "market is open/closed on this date" reference. Any ticker whose last Polygon bar
+  // is more than 5 calendar days behind this is delisted, halted, or acquired and must
+  // be excluded — stale data scores perfectly on momentum signals (e.g. acquisition surges).
+  const benchmarkLastBarTime = benchmarkRaw[benchmarkRaw.length - 1].t / 1000; // ms → seconds
+
   const results: MomentumPick[] = [];
 
   // For each ticker: fetch Polygon history and Finnhub quote simultaneously,
@@ -108,6 +114,15 @@ async function runScan(
           getDailyBars(ticker, 252),
           getFinnhubQuote(ticker),
         ]);
+
+        // Staleness guard: skip tickers whose last Polygon bar is more than 5 calendar
+        // days behind the benchmark. Catches delisted, acquired, and halted stocks whose
+        // final session often looks like a perfect momentum setup (acquisition premiums,
+        // halt-day volume spikes, etc.) but are not actually tradeable.
+        const tickerLastBarTime = rawBars[rawBars.length - 1].t / 1000;
+        const daysBehind = (benchmarkLastBarTime - tickerLastBarTime) / 86400;
+        if (daysBehind > 5) return;
+
         const bars = rawBars.map(polygonToOHLCV);
         const pick = buildPick(ticker, bars, quote, benchmarkBars, "stock", options);
         if (pick) results.push(pick);
@@ -156,6 +171,7 @@ export function runSmallCapScan(limit = 10): Promise<MomentumPick[]> {
 export async function runCryptoScan(limit = 6): Promise<MomentumPick[]> {
   // BTC as the crypto benchmark — "is this coin outperforming Bitcoin?"
   const btcBars = await getCoinbaseDailyCandles("BTC-USD", 252);
+  const btcLastBarTime = btcBars[btcBars.length - 1].time;
 
   const results: MomentumPick[] = [];
 
@@ -164,6 +180,11 @@ export async function runCryptoScan(limit = 6): Promise<MomentumPick[]> {
       try {
         const candles = await getCoinbaseDailyCandles(productId, 252);
         if (candles.length < 55) return;
+
+        // Staleness guard: crypto trades 24/7 so any pair more than 2 days behind BTC
+        // is delisted or no longer supported on Coinbase.
+        const daysBehind = (btcLastBarTime - candles[candles.length - 1].time) / 86400;
+        if (daysBehind > 2) return;
 
         const scored = scoreBars(candles, btcBars, productId, name, {
           benchmarkName: "Bitcoin",
