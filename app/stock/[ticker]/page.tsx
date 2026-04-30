@@ -50,7 +50,7 @@ export default function StockDetailPage({ params }: { params: Promise<{ ticker: 
                     ${data.price.toLocaleString("en-US", { minimumFractionDigits: 2 })}
                   </span>
                   <span className={`text-[10px] font-mono px-1 py-0.5 rounded ${data.priceSource === "live" ? "bg-emerald-500/20 text-emerald-400" : "bg-[#1c2e1e] text-[#6b7280]"}`}>
-                    {data.priceSource === "live" ? "LIVE" : `EOD ${data.dataAsOf}`}
+                    {data.priceSource === "live" ? "~15 min" : `EOD ${data.dataAsOf}`}
                   </span>
                 </div>
                 <div className={`flex items-center justify-end gap-1 text-sm font-semibold ${data.changePct >= 0 ? "text-green-400" : "text-red-400"}`}>
