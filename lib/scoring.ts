@@ -33,7 +33,8 @@ export function scoreBars(
   bars: OHLCVBar[],
   spyBars: OHLCVBar[],
   ticker: string,
-  name: string
+  name: string,
+  options: { benchmarkName?: string; maxStopPct?: number } = {}
 ): ScoringResult | null {
   if (bars.length < 55) return null;
 
@@ -74,10 +75,11 @@ export function scoreBars(
 
   const signals = buildSignals(
     rsRating, emaStack, emaCross921, volumeRatio, lastRsi, aboveVwap,
-    lastClose, lastEma9, lastEma21, lastEma50, anchoredVwap
+    lastClose, lastEma9, lastEma21, lastEma50, anchoredVwap,
+    options.benchmarkName ?? "S&P 500"
   );
 
-  const tradeSetup = buildTradeSetup(lastClose, lastEma9, atr, anchoredVwap);
+  const tradeSetup = buildTradeSetup(lastClose, lastEma9, atr, anchoredVwap, options.maxStopPct ?? 0.05);
   const ruleBasedCommentary = buildCommentary(ticker, name, score, rsRating, volumeRatio, lastRsi, tradeSetup, signals);
 
   return {
@@ -90,7 +92,7 @@ export function scoreBars(
 function buildSignals(
   rsRating: number, emaStack: boolean, emaCross921: boolean, volumeRatio: number,
   rsi: number, aboveVwap: boolean, price: number, ema9: number, ema21: number,
-  ema50: number, vwap: number | null
+  ema50: number, vwap: number | null, benchmarkName = "S&P 500"
 ): MomentumSignal[] {
   return [
     {
@@ -100,7 +102,7 @@ function buildSignals(
     },
     {
       name: "rsRating", label: "RS Rating",
-      value: `${rsRating} / 100 vs S&P 500`,
+      value: `${rsRating} / 100 vs ${benchmarkName}`,
       status: rsRating >= 80 ? "pass" : rsRating >= 60 ? "warn" : "fail",
     },
     {
@@ -130,16 +132,16 @@ function buildTradeSetup(
   price: number,
   ema9: number,
   atr: number,
-  vwap: number | null
+  vwap: number | null,
+  maxStopPct = 0.05
 ): TradeSetup {
   // Entry: current price or pullback to 9 EMA
   const entryLow = +Math.min(price * 0.999, ema9 * 1.002).toFixed(2);
   const entryHigh = +(price * 1.004).toFixed(2);
 
-  // Stop: 1.5x ATR below entry, clamped to 2.5%–5% of price
-  // Keeps stop tight enough for 1-2 day trades but not artificially small
+  // Stop: 1.5x ATR below entry, clamped to 2.5%–maxStopPct of price
   const atrStop = atr > 0 ? atr * 1.5 : price * 0.03;
-  const stopDollar = Math.min(Math.max(atrStop, price * 0.025), price * 0.05);
+  const stopDollar = Math.min(Math.max(atrStop, price * 0.025), price * maxStopPct);
   const stopLoss = +(price - stopDollar).toFixed(2);
   const stopLossPct = +((stopLoss - price) / price * 100).toFixed(1);
 

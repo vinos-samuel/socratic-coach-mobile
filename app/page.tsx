@@ -2,15 +2,27 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { TrendingUp, Zap, AlertCircle, RefreshCw } from "lucide-react";
+import { TrendingUp, Zap, AlertCircle, RefreshCw, FlameKindling } from "lucide-react";
 import { ScannerResponse } from "@/types";
 import { PickCard } from "@/components/PickCard";
 import { MarketStatus } from "@/components/MarketStatus";
 
-type Tab = "stocks" | "crypto";
+type Tab = "stocks" | "smallcap" | "crypto";
+
+const TABS: { id: Tab; label: string; api: string }[] = [
+  { id: "stocks",   label: "🇺🇸 Large Cap", api: "/api/scanner"  },
+  { id: "smallcap", label: "⚡ Small Cap",  api: "/api/smallcap" },
+  { id: "crypto",   label: "₿ Crypto",     api: "/api/crypto"   },
+];
+
+const DISCLAIMERS: Record<Tab, string> = {
+  stocks: "Picks scored 0–100 vs S&P 500 using RS Rating, EMA stack (9/21/50), volume surge, RSI zone (55–80), and anchored VWAP. Score threshold: 65.",
+  smallcap: "Picks scored 0–100 vs Russell 2000 (IWM). Score threshold: 55. Small caps carry significantly higher volatility and liquidity risk — position size smaller than large caps. Use wider stops and tighter position limits.",
+  crypto: "Picks scored using 4-hr candles vs their own baseline. Crypto is highly volatile and trades 24/7. Past momentum does not guarantee future results.",
+};
 
 async function fetchScanner(tab: Tab, forceRefresh = false): Promise<ScannerResponse> {
-  const base = tab === "crypto" ? "/api/crypto" : "/api/scanner";
+  const base = TABS.find((t) => t.id === tab)!.api;
   const url = forceRefresh ? `${base}?refresh=1` : base;
   const res = await fetch(url, { cache: "no-store" });
   const json = await res.json();
@@ -25,17 +37,21 @@ export default function DashboardPage() {
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery<ScannerResponse>({
     queryKey: ["scanner", tab],
     queryFn: () => fetchScanner(tab, forceRefresh),
-    staleTime: 29 * 60 * 1000, // treat as fresh for 29 min — no auto background refetch
+    staleTime: 29 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
 
   function handleRefresh() {
     const lockedUntil = data?.scanLockedUntil ? new Date(data.scanLockedUntil).getTime() : 0;
     const isLocked = Date.now() < lockedUntil;
-    setForceRefresh(!isLocked); // only bypass cache if the lock has expired
+    setForceRefresh(!isLocked);
     refetch();
     setForceRefresh(false);
   }
+
+  const scanLabel = tab === "stocks" ? "S&P 500 large caps"
+    : tab === "smallcap" ? "small cap universe"
+    : "top crypto pairs";
 
   return (
     <div className="min-h-screen bg-[#0d1210]">
@@ -64,25 +80,30 @@ export default function DashboardPage() {
       <main className="max-w-4xl mx-auto px-4 py-6">
         {/* Tabs */}
         <div className="flex gap-1 bg-[#111a14] border border-[#1c2e1e] rounded-xl p-1 mb-6 w-fit">
-          {(["stocks", "crypto"] as Tab[]).map((t) => (
+          {TABS.map(({ id, label }) => (
             <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all capitalize ${
-                tab === t
+              key={id}
+              onClick={() => setTab(id)}
+              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                tab === id
                   ? "bg-emerald-700 text-white shadow-sm"
                   : "text-[#6b7280] hover:text-white"
               }`}
             >
-              {t === "stocks" ? "🇺🇸 Stocks" : "₿ Crypto"}
+              {label}
             </button>
           ))}
         </div>
 
         {/* Section header */}
         <div className="flex items-center gap-2 mb-4">
-          <TrendingUp className="w-5 h-5 text-emerald-400" />
-          <h1 className="text-white font-bold text-xl">Top Momentum Picks</h1>
+          {tab === "smallcap"
+            ? <FlameKindling className="w-5 h-5 text-amber-400" />
+            : <TrendingUp className="w-5 h-5 text-emerald-400" />
+          }
+          <h1 className="text-white font-bold text-xl">
+            {tab === "stocks" ? "Large Cap Momentum" : tab === "smallcap" ? "Small Cap Runners" : "Crypto Momentum"}
+          </h1>
           {data?.picks && (
             <span className="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full px-2.5 py-0.5 font-medium">
               {data.picks.length} picks
@@ -90,11 +111,22 @@ export default function DashboardPage() {
           )}
         </div>
 
+        {/* Small cap risk callout */}
+        {tab === "smallcap" && (
+          <div className="flex items-start gap-3 bg-amber-950/30 border border-amber-500/30 rounded-xl p-3 mb-5">
+            <FlameKindling className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+            <p className="text-amber-300/80 text-xs leading-relaxed">
+              Higher reward, higher risk. Small caps can move 10–30% in a single session.
+              Use smaller position sizes, honour your stop-loss, and never chase a breakout more than 2% above the entry zone.
+            </p>
+          </div>
+        )}
+
         {/* Loading */}
         {isLoading && (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
             <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin" />
-            <p className="text-[#6b7280] text-sm">Scanning momentum across {tab === "stocks" ? "S&P 500" : "top crypto"}...</p>
+            <p className="text-[#6b7280] text-sm">Scanning momentum across {scanLabel}...</p>
             <p className="text-[#4b5563] text-xs">This takes ~20s on first load</p>
           </div>
         )}
@@ -115,7 +147,11 @@ export default function DashboardPage() {
         {!isLoading && !isError && data?.picks.length === 0 && (
           <div className="text-center py-20">
             <p className="text-[#6b7280] text-base">No high-conviction setups found right now.</p>
-            <p className="text-[#4b5563] text-sm mt-2">The scanner requires score ≥ 55. Market conditions may be choppy.</p>
+            <p className="text-[#4b5563] text-sm mt-2">
+              {tab === "smallcap"
+                ? "Score threshold is 55 vs Russell 2000. Conditions may be choppy or no small caps are in momentum phase."
+                : "The scanner requires score ≥ 55. Market conditions may be choppy."}
+            </p>
           </div>
         )}
 
@@ -130,9 +166,8 @@ export default function DashboardPage() {
 
         {/* Disclaimer */}
         <p className="text-[#4b5563] text-xs text-center mt-10 leading-relaxed">
-          Picks are scored 0–100 using RS Rating vs S&P 500, EMA stack alignment (9/21/50), volume surge, RSI zone (55–80), and anchored VWAP.
-          For informational purposes only. Not financial advice. Past momentum does not guarantee future results.
-          Always manage risk with a defined stop-loss.
+          {DISCLAIMERS[tab]} For informational purposes only. Not financial advice.
+          Past momentum does not guarantee future results. Always manage risk with a defined stop-loss.
         </p>
       </main>
     </div>
