@@ -1,6 +1,6 @@
 import { MomentumPick, OHLCVBar } from "@/types";
 import { getDailyBars, getTickerDetails, PolygonBar } from "./polygon";
-import { getCoinbase4hrCandles, TOP_CRYPTO_PAIRS } from "./coinbase";
+import { getCoinbaseDailyCandles, TOP_CRYPTO_PAIRS } from "./coinbase";
 import { scoreBars } from "./scoring";
 import { getFinnhubQuote, enrichBarsWithToday, FinnhubQuote } from "./finnhub";
 
@@ -15,7 +15,7 @@ const SCAN_UNIVERSE = [
 
 // Liquid small-cap momentum candidates — benchmarked vs IWM (Russell 2000)
 const SMALL_CAP_UNIVERSE = [
-  "RXRX", "BEAM", "EDIT", "NTLA", "PRAX", "AGEN", "ARCT", "VERV", "NKTR", "FATE",
+  "RXRX", "BEAM", "EDIT", "NTLA", "PRAX", "AGEN", "ARCT", "NKTR", "FATE",
   "TASK", "BIGC", "SEMR", "DOMO", "ALRM", "APPS", "RSKD", "CODA",
   "BLNK", "CHPT", "PLUG", "FCEL", "BE", "STEM",
   "HCC", "METC", "MP", "SXC",
@@ -154,16 +154,22 @@ export function runSmallCapScan(limit = 10): Promise<MomentumPick[]> {
 }
 
 export async function runCryptoScan(limit = 6): Promise<MomentumPick[]> {
+  // BTC as the crypto benchmark — "is this coin outperforming Bitcoin?"
+  const btcBars = await getCoinbaseDailyCandles("BTC-USD", 252);
+
   const results: MomentumPick[] = [];
 
   await Promise.allSettled(
     TOP_CRYPTO_PAIRS.map(async ({ productId, name }) => {
       try {
-        const candles = await getCoinbase4hrCandles(productId, 50);
+        const candles = await getCoinbaseDailyCandles(productId, 252);
         if (candles.length < 55) return;
 
-        const scored = scoreBars(candles, candles, productId, name);
-        if (!scored || scored.score < 40) return;
+        const scored = scoreBars(candles, btcBars, productId, name, {
+          benchmarkName: "Bitcoin",
+          maxStopPct: 0.08,
+        });
+        if (!scored || scored.score < 45) return;
 
         const price = candles[candles.length - 1].close;
         const prevPrice = candles[candles.length - 2]?.close ?? price;
