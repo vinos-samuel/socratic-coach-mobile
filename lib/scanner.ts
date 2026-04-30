@@ -1,8 +1,15 @@
 import { MomentumPick, OHLCVBar } from "@/types";
-import { getDailyBars, getTickerDetails, PolygonBar } from "./polygon";
+import {
+  getDailyBars,
+  getTickerDetails,
+  getSnapshotBatch,
+  PolygonSnapshotEntry,
+  PolygonBar,
+} from "./polygon";
 import { getCoinbaseDailyCandles, TOP_CRYPTO_PAIRS } from "./coinbase";
 import { scoreBars } from "./scoring";
-import { getFinnhubQuote, enrichBarsWithToday, FinnhubQuote } from "./finnhub";
+import { getFinnhubQuote, enrichBarsWithToday, getFinnhubNews, FinnhubQuote } from "./finnhub";
+import { getStockTwitsSentiment } from "./stocktwits";
 
 // Curated high-momentum S&P 500 candidates
 const SCAN_UNIVERSE = [
@@ -38,9 +45,26 @@ function polygonToOHLCV(bar: PolygonBar): OHLCVBar {
   };
 }
 
-// Build a pick from already-fetched bars + Finnhub quote.
-// Finnhub data is spliced into bars BEFORE scoring so all signals
-// (EMA positions, RSI, VWAP, volume ratio) reflect today's price action.
+// Maps a Polygon real-time snapshot entry to the FinnhubQuote shape so
+// enrichBarsWithToday() can use it unchanged. Key improvement: day.v gives
+// real intraday volume instead of the Finnhub fallback of volume=0.
+function snapshotToQuote(entry: PolygonSnapshotEntry): FinnhubQuote {
+  return {
+    c: entry.lastTrade?.p || entry.day.c,
+    d: entry.todaysChange,
+    dp: entry.todaysChangePerc,
+    h: entry.day.h,
+    l: entry.day.l,
+    o: entry.day.o,
+    pc: entry.prevDay.c,
+    // Polygon lastTrade.t is nanoseconds; FinnhubQuote.t is unix seconds
+    t: entry.lastTrade?.t ? Math.floor(entry.lastTrade.t / 1_000_000_000) : Math.floor(Date.now() / 1000),
+    v: entry.day.v,
+  };
+}
+
+// Build a pick from already-fetched bars + quote.
+// Quote is spliced into bars BEFORE scoring so all signals reflect today's price action.
 function buildPick(
   ticker: string,
   rawBars: OHLCVBar[],
@@ -57,7 +81,6 @@ function buildPick(
   });
   if (!scored || scored.score < options.threshold) return null;
 
-  // Use Finnhub's live price and prev-close for accurate change display
   const price = quote?.c && quote.c > 0 ? quote.c : bars[bars.length - 1].close;
   const prevClose = quote?.pc && quote.pc > 0 ? quote.pc : (bars[bars.length - 2]?.close ?? price);
   const change = price - prevClose;
@@ -89,39 +112,42 @@ async function runScan(
   benchmarkTicker: string,
   options: { benchmarkName: string; maxStopPct: number; threshold: number; limit: number }
 ): Promise<MomentumPick[]> {
-  // Fetch benchmark bars + its live quote in parallel so RS Rating also uses today's benchmark close
-  const [benchmarkRaw, benchmarkQuote] = await Promise.all([
+  // Fetch benchmark bars and a batch snapshot for the entire universe + benchmark
+  // in parallel. The snapshot (Polygon Starter) gives real-time prices and intraday
+  // volume for all tickers in one API call instead of 80+ individual Finnhub calls.
+  const allTickers = [...universe, benchmarkTicker];
+  const [benchmarkRaw, snapshotMap] = await Promise.all([
     getDailyBars(benchmarkTicker, 252),
-    getFinnhubQuote(benchmarkTicker),
+    getSnapshotBatch(allTickers),
   ]);
+
+  // Resolve the benchmark quote: prefer Polygon snapshot, fall back to Finnhub
+  const benchmarkSnap = snapshotMap.get(benchmarkTicker);
+  const benchmarkQuote = benchmarkSnap
+    ? snapshotToQuote(benchmarkSnap)
+    : await getFinnhubQuote(benchmarkTicker);
+
   const benchmarkBars = enrichBarsWithToday(benchmarkRaw.map(polygonToOHLCV), benchmarkQuote);
   if (benchmarkBars.length < 55) throw new Error(`Could not fetch ${benchmarkTicker} baseline data`);
 
-  // Last date Polygon has for the benchmark (before Finnhub enrichment) — use as the
-  // "market is open/closed on this date" reference. Any ticker whose last Polygon bar
-  // is more than 5 calendar days behind this is delisted, halted, or acquired and must
-  // be excluded — stale data scores perfectly on momentum signals (e.g. acquisition surges).
-  const benchmarkLastBarTime = benchmarkRaw[benchmarkRaw.length - 1].t / 1000; // ms → seconds
+  const benchmarkLastBarTime = benchmarkRaw[benchmarkRaw.length - 1].t / 1000;
 
   const results: MomentumPick[] = [];
 
-  // For each ticker: fetch Polygon history and Finnhub quote simultaneously,
-  // enrich bars with today's candle, then score — all in one pass
   await Promise.allSettled(
     universe.map(async (ticker) => {
       try {
-        const [rawBars, quote] = await Promise.all([
-          getDailyBars(ticker, 252),
-          getFinnhubQuote(ticker),
-        ]);
+        // Fetch 252-day history; quote comes from the snapshot batch (or Finnhub fallback)
+        const rawBars = await getDailyBars(ticker, 252);
 
-        // Staleness guard: skip tickers whose last Polygon bar is more than 5 calendar
-        // days behind the benchmark. Catches delisted, acquired, and halted stocks whose
-        // final session often looks like a perfect momentum setup (acquisition premiums,
-        // halt-day volume spikes, etc.) but are not actually tradeable.
         const tickerLastBarTime = rawBars[rawBars.length - 1].t / 1000;
         const daysBehind = (benchmarkLastBarTime - tickerLastBarTime) / 86400;
         if (daysBehind > 5) return;
+
+        const snap = snapshotMap.get(ticker);
+        const quote = snap
+          ? snapshotToQuote(snap)
+          : await getFinnhubQuote(ticker);
 
         const bars = rawBars.map(polygonToOHLCV);
         const pick = buildPick(ticker, bars, quote, benchmarkBars, "stock", options);
@@ -135,14 +161,25 @@ async function runScan(
   results.sort((a, b) => b.score - a.score);
   const top = results.slice(0, options.limit);
 
-  // Enrich top picks with real company names
+  // Enrich top picks with company names, Finnhub news, and StockTwits sentiment.
+  // All run in parallel; failures are silent so they never block the picks response.
   await Promise.allSettled(
     top.map(async (pick) => {
-      try {
-        const details = await getTickerDetails(pick.ticker);
-        pick.name = details.name;
-      } catch {
-        // keep ticker as name
+      const [details, news, sentiment] = await Promise.allSettled([
+        getTickerDetails(pick.ticker),
+        getFinnhubNews(pick.ticker),
+        getStockTwitsSentiment(pick.ticker),
+      ]);
+
+      if (details.status === "fulfilled") pick.name = details.value.name;
+
+      if (news.status === "fulfilled" && news.value && news.value.count > 0) {
+        pick.newsCount = news.value.count;
+        pick.latestHeadline = news.value.latest ?? undefined;
+      }
+
+      if (sentiment.status === "fulfilled" && sentiment.value) {
+        pick.sentiment = sentiment.value;
       }
     })
   );
@@ -181,8 +218,6 @@ export async function runCryptoScan(limit = 6): Promise<MomentumPick[]> {
         const candles = await getCoinbaseDailyCandles(productId, 252);
         if (candles.length < 55) return;
 
-        // Staleness guard: crypto trades 24/7 so any pair more than 2 days behind BTC
-        // is delisted or no longer supported on Coinbase.
         const daysBehind = (btcLastBarTime - candles[candles.length - 1].time) / 86400;
         if (daysBehind > 2) return;
 

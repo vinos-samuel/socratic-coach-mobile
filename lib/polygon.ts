@@ -58,6 +58,42 @@ export async function getTickerDetails(ticker: string): Promise<{ name: string }
   return data.results ?? { name: ticker };
 }
 
+export interface PolygonSnapshotEntry {
+  ticker: string;
+  day: { o: number; h: number; l: number; c: number; v: number; vw: number };
+  prevDay: { c: number };
+  lastTrade: { p: number; t: number }; // t = nanoseconds
+  todaysChange: number;
+  todaysChangePerc: number;
+}
+
+// Fetches real-time snapshot for up to N tickers in one call.
+// Requires Polygon Starter tier — returns empty Map gracefully on 403 so the
+// scanner falls back to per-ticker Finnhub quotes automatically.
+export async function getSnapshotBatch(
+  tickers: string[]
+): Promise<Map<string, PolygonSnapshotEntry>> {
+  if (!tickers.length) return new Map();
+  const map = new Map<string, PolygonSnapshotEntry>();
+  // URL length safety: chunk into 100-ticker batches
+  const CHUNK = 100;
+  for (let i = 0; i < tickers.length; i += CHUNK) {
+    const chunk = tickers.slice(i, i + CHUNK);
+    const url = `${BASE}/v2/snapshot/locale/us/markets/stocks/tickers?tickers=${chunk.join(",")}&apiKey=${key()}`;
+    try {
+      const data = await get<{ results: PolygonSnapshotEntry[] }>(url);
+      for (const entry of data.results ?? []) {
+        map.set(entry.ticker, entry);
+      }
+    } catch (err) {
+      // 403 = free-tier key; other errors = network blip — either way return what we have
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!msg.includes("403")) console.warn("Snapshot batch partial failure:", msg);
+    }
+  }
+  return map;
+}
+
 export function isMarketOpen(): boolean {
   const now = new Date();
   const et = new Date(now.toLocaleString("en-US", { timeZone: "America/New_York" }));

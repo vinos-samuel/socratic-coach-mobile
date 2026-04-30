@@ -12,6 +12,7 @@ export interface FinnhubQuote {
   o: number;   // session open
   pc: number;  // previous close
   t: number;   // last trade timestamp (unix seconds)
+  v?: number;  // optional: intraday volume (provided by Polygon snapshot, not Finnhub /quote)
 }
 
 export async function getFinnhubQuote(ticker: string): Promise<FinnhubQuote | null> {
@@ -52,7 +53,7 @@ export function enrichBarsWithToday(bars: OHLCVBar[], quote: FinnhubQuote | null
       high: quote.h,
       low: quote.l,
       close: quote.c,
-      volume: 0, // Finnhub /quote endpoint does not include volume
+      volume: quote.v ?? 0,
     }];
   }
 
@@ -68,4 +69,31 @@ export function enrichBarsWithToday(bars: OHLCVBar[], quote: FinnhubQuote | null
   }
 
   return bars;
+}
+
+// Returns count of articles in the last `hoursBack` hours plus the latest headline.
+// Returns null if no API key, request fails, or no articles found.
+export async function getFinnhubNews(
+  ticker: string,
+  hoursBack = 48
+): Promise<{ count: number; latest: string | null } | null> {
+  const apiKey = process.env.FINNHUB_API_KEY;
+  if (!apiKey) return null;
+  try {
+    const to = new Date();
+    const from = new Date(to.getTime() - hoursBack * 60 * 60 * 1000);
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    const res = await fetch(
+      `https://finnhub.io/api/v1/company-news?symbol=${ticker}&from=${fmt(from)}&to=${fmt(to)}&token=${apiKey}`,
+      { cache: "no-store" }
+    );
+    if (!res.ok) return null;
+    const articles = await res.json() as Array<{ headline: string; datetime: number }>;
+    if (!Array.isArray(articles) || articles.length === 0) return null;
+    // Sort descending by datetime so articles[0] is the most recent
+    articles.sort((a, b) => b.datetime - a.datetime);
+    return { count: articles.length, latest: articles[0]?.headline ?? null };
+  } catch {
+    return null;
+  }
 }

@@ -69,6 +69,22 @@ export function PickCard({ pick, rank }: PickCardProps) {
               <Zap className="w-3 h-3" /> Cross
             </span>
           )}
+          {pick.newsCount && pick.newsCount > 0 ? (
+            <span className="text-xs bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-md px-2 py-0.5 font-medium">
+              📰 {pick.newsCount} news
+            </span>
+          ) : null}
+          {pick.sentiment && pick.sentiment.total >= 3 ? (
+            <span className={`text-xs rounded-md px-2 py-0.5 font-medium border ${
+              pick.sentiment.bullishPct >= 65
+                ? "bg-green-500/10 text-green-400 border-green-500/20"
+                : pick.sentiment.bullishPct <= 35
+                ? "bg-red-500/10 text-red-400 border-red-500/20"
+                : "bg-[#1c2e1e] text-[#9ca3af] border-[#2a3f2e]"
+            }`}>
+              ST {pick.sentiment.bullishPct}% bull
+            </span>
+          ) : null}
         </div>
 
         {/* Key metrics */}

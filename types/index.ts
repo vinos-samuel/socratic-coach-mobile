@@ -55,6 +55,13 @@ export interface MomentumPick {
   signals: MomentumSignal[];
   ruleBasedCommentary: string;
   type: "stock" | "crypto";
+  newsCount?: number;
+  latestHeadline?: string;
+  sentiment?: {
+    bullishPct: number;
+    bearishPct: number;
+    total: number;
+  };
 }
 
 export interface ScannerResponse {
