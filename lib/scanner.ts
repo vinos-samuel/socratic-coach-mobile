@@ -2,43 +2,28 @@ import { MomentumPick, OHLCVBar } from "@/types";
 import { getDailyBars, getTickerDetails, PolygonBar } from "./polygon";
 import { getCoinbase4hrCandles, TOP_CRYPTO_PAIRS } from "./coinbase";
 import { scoreBars } from "./scoring";
+import { getFinnhubQuote, enrichBarsWithToday, FinnhubQuote } from "./finnhub";
 
-// Curated high-momentum S&P 500 candidates — all accessible via individual aggregate calls
+// Curated high-momentum S&P 500 candidates
 const SCAN_UNIVERSE = [
-  // Mega-cap tech / high-beta
   "NVDA", "AMD", "AAPL", "MSFT", "META", "GOOGL", "AMZN", "TSLA", "AVGO", "ORCL",
-  // Growth / cloud
   "CRM", "ADBE", "NOW", "PANW", "CRWD", "SNPS", "CDNS", "KLAC", "LRCX", "AMAT",
-  // Financials
   "JPM", "GS", "MS", "V", "MA",
-  // Healthcare / biotech
   "LLY", "ABBV", "ISRG", "VRTX", "REGN",
-  // Energy / industrials
   "XOM", "CVX", "CAT", "DE", "ETN",
 ];
 
 // Liquid small-cap momentum candidates — benchmarked vs IWM (Russell 2000)
-// Score threshold: 55 (vs 65 for large caps) — wider band to catch early runners
 const SMALL_CAP_UNIVERSE = [
-  // Biotech / gene editing — highest momentum potential, catalyst-driven
   "RXRX", "BEAM", "EDIT", "NTLA", "PRAX", "AGEN", "ARCT", "VERV", "NKTR", "FATE",
-  // High-growth tech & software
   "TASK", "BIGC", "SEMR", "DOMO", "ALRM", "APPS", "RSKD", "CODA",
-  // Clean energy / EV charging infrastructure
   "BLNK", "CHPT", "PLUG", "FCEL", "BE", "STEM",
-  // Materials / specialty resources
   "HCC", "METC", "MP", "SXC",
-  // Healthcare devices & services
   "AXNX", "SILK", "NVCR", "BLFS", "ACCD", "HIMS",
-  // Defense / space technology
   "KTOS", "RKLB", "RDW",
-  // Crypto miners / digital asset infrastructure
   "MARA", "RIOT", "CLSK", "CIFR",
-  // Semiconductor equipment (smaller)
   "ACMR", "DIOD", "FORM", "ONTO",
-  // Quantum / emerging deep tech
   "IONQ",
-  // Fintech / alternative lending
   "OPFI", "ENVA",
 ];
 
@@ -53,24 +38,30 @@ function polygonToOHLCV(bar: PolygonBar): OHLCVBar {
   };
 }
 
-async function buildPick(
+// Build a pick from already-fetched bars + Finnhub quote.
+// Finnhub data is spliced into bars BEFORE scoring so all signals
+// (EMA positions, RSI, VWAP, volume ratio) reflect today's price action.
+function buildPick(
   ticker: string,
-  bars: OHLCVBar[],
+  rawBars: OHLCVBar[],
+  quote: FinnhubQuote | null,
   benchmarkBars: OHLCVBar[],
-  type: "stock" | "smallcap",
+  type: "stock",
   options: { benchmarkName: string; maxStopPct: number; threshold: number }
-): Promise<MomentumPick | null> {
+): MomentumPick | null {
+  const bars = enrichBarsWithToday(rawBars, quote);
+
   const scored = scoreBars(bars, benchmarkBars, ticker, ticker, {
     benchmarkName: options.benchmarkName,
     maxStopPct: options.maxStopPct,
   });
   if (!scored || scored.score < options.threshold) return null;
 
-  const lastBar = bars[bars.length - 1];
-  const prevBar = bars[bars.length - 2];
-  const price = lastBar.close;
-  const change = price - (prevBar?.close ?? price);
-  const changePct = prevBar ? (change / prevBar.close) * 100 : 0;
+  // Use Finnhub's live price and prev-close for accurate change display
+  const price = quote?.c && quote.c > 0 ? quote.c : bars[bars.length - 1].close;
+  const prevClose = quote?.pc && quote.pc > 0 ? quote.pc : (bars[bars.length - 2]?.close ?? price);
+  const change = price - prevClose;
+  const changePct = (change / prevClose) * 100;
 
   return {
     ticker,
@@ -89,27 +80,36 @@ async function buildPick(
     tradeSetup: scored.tradeSetup,
     signals: scored.signals,
     ruleBasedCommentary: scored.ruleBasedCommentary,
-    type: type === "smallcap" ? "stock" : type,
+    type,
   };
 }
 
 async function runScan(
   universe: string[],
   benchmarkTicker: string,
-  options: { benchmarkName: string; maxStopPct: number; threshold: number; type: "stock" | "smallcap"; limit: number }
+  options: { benchmarkName: string; maxStopPct: number; threshold: number; limit: number }
 ): Promise<MomentumPick[]> {
-  const benchmarkRaw = await getDailyBars(benchmarkTicker, 252);
-  const benchmarkBars = benchmarkRaw.map(polygonToOHLCV);
+  // Fetch benchmark bars + its live quote in parallel so RS Rating also uses today's benchmark close
+  const [benchmarkRaw, benchmarkQuote] = await Promise.all([
+    getDailyBars(benchmarkTicker, 252),
+    getFinnhubQuote(benchmarkTicker),
+  ]);
+  const benchmarkBars = enrichBarsWithToday(benchmarkRaw.map(polygonToOHLCV), benchmarkQuote);
   if (benchmarkBars.length < 55) throw new Error(`Could not fetch ${benchmarkTicker} baseline data`);
 
   const results: MomentumPick[] = [];
 
+  // For each ticker: fetch Polygon history and Finnhub quote simultaneously,
+  // enrich bars with today's candle, then score — all in one pass
   await Promise.allSettled(
     universe.map(async (ticker) => {
       try {
-        const rawBars = await getDailyBars(ticker, 252);
+        const [rawBars, quote] = await Promise.all([
+          getDailyBars(ticker, 252),
+          getFinnhubQuote(ticker),
+        ]);
         const bars = rawBars.map(polygonToOHLCV);
-        const pick = await buildPick(ticker, bars, benchmarkBars, options.type, options);
+        const pick = buildPick(ticker, bars, quote, benchmarkBars, "stock", options);
         if (pick) results.push(pick);
       } catch {
         // skip tickers that fail
@@ -120,7 +120,7 @@ async function runScan(
   results.sort((a, b) => b.score - a.score);
   const top = results.slice(0, options.limit);
 
-  // Enrich with real company names
+  // Enrich top picks with real company names
   await Promise.allSettled(
     top.map(async (pick) => {
       try {
@@ -140,7 +140,6 @@ export function runStockScan(limit = 10): Promise<MomentumPick[]> {
     benchmarkName: "S&P 500",
     maxStopPct: 0.05,
     threshold: 65,
-    type: "stock",
     limit,
   });
 }
@@ -150,7 +149,6 @@ export function runSmallCapScan(limit = 10): Promise<MomentumPick[]> {
     benchmarkName: "Russell 2000",
     maxStopPct: 0.07,
     threshold: 55,
-    type: "smallcap",
     limit,
   });
 }
