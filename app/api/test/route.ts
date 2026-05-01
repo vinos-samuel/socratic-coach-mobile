@@ -1,41 +1,85 @@
 import { NextResponse } from "next/server";
+import { getFinnhubNews } from "@/lib/finnhub";
+import { getStockTwitsSentiment } from "@/lib/stocktwits";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const key = process.env.POLYGON_API_KEY;
+export async function GET(req: Request) {
+  const ticker = new URL(req.url).searchParams.get("ticker") ?? "NVDA";
+  const polygonKey = process.env.POLYGON_API_KEY;
+  const finnhubKey = process.env.FINNHUB_API_KEY;
 
-  if (!key) {
-    return NextResponse.json({ status: "error", issue: "POLYGON_API_KEY env var is missing in this deployment" });
+  // --- Polygon key check ---
+  let polygonTest: { result: string; status?: number } = { result: "skipped — key missing" };
+  if (polygonKey) {
+    const testUrl = `https://api.polygon.io/v2/aggs/ticker/AAPL/range/1/day/2024-01-02/2024-01-05?adjusted=true&sort=asc&limit=5&apiKey=${polygonKey}`;
+    try {
+      const res = await fetch(testUrl, { cache: "no-store" });
+      polygonTest = { result: res.ok ? "PASS" : `FAIL`, status: res.status };
+    } catch (e) {
+      polygonTest = { result: `ERROR: ${String(e)}` };
+    }
   }
 
-  // Step 1: test the simplest possible call — single ticker aggregate
-  const testUrl = `https://api.polygon.io/v2/aggs/ticker/AAPL/range/1/day/2024-01-02/2024-01-05?adjusted=true&sort=asc&limit=5&apiKey=${key}`;
-  let aggResult: { ok: boolean; status: number; body: unknown } = { ok: false, status: 0, body: null };
-  try {
-    const res = await fetch(testUrl, { cache: "no-store" });
-    aggResult = { ok: res.ok, status: res.status, body: await res.json() };
-  } catch (e) {
-    aggResult = { ok: false, status: 0, body: String(e) };
+  // --- Finnhub news ---
+  let newsResult: unknown = "skipped — FINNHUB_API_KEY not set in Vercel env";
+  if (finnhubKey) {
+    try {
+      newsResult = await getFinnhubNews(ticker, 48) ?? "null (no articles in 48h or request failed)";
+    } catch (e) {
+      newsResult = `ERROR: ${String(e)}`;
+    }
   }
 
-  // Step 2: test grouped daily endpoint
-  const groupUrl = `https://api.polygon.io/v2/aggs/grouped/locale/us/market/stocks/2024-01-04?adjusted=true&include_otc=false&apiKey=${key}`;
-  let groupResult: { ok: boolean; status: number; count: number; error?: unknown } = { ok: false, status: 0, count: 0 };
+  // --- StockTwits sentiment (raw response logged alongside parsed result) ---
+  let stockTwitsRaw: unknown = null;
+  let stockTwitsParsed: unknown = null;
   try {
-    const res = await fetch(groupUrl, { cache: "no-store" });
-    const json = await res.json() as { results?: unknown[]; error?: unknown };
-    groupResult = { ok: res.ok, status: res.status, count: json.results?.length ?? 0, error: json.error };
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    let stRes: Response;
+    try {
+      stRes = await fetch(
+        `https://api.stocktwits.com/api/2/streams/symbol/${ticker}.json`,
+        { cache: "no-store", headers: { "User-Agent": "Mozilla/5.0 StockCur8d/1.0" }, signal: controller.signal }
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (stRes.ok) {
+      const json = await stRes.json() as {
+        response?: { status: number };
+        messages?: Array<{ entities?: { sentiment?: { basic?: string } | null } | null }>;
+      };
+      const messages = json.messages ?? [];
+      const tagged = messages.map((m) => m.entities?.sentiment?.basic ?? null).filter(Boolean);
+      stockTwitsRaw = {
+        httpStatus: stRes.status,
+        responseStatus: json.response?.status,
+        totalMessages: messages.length,
+        taggedMessages: tagged.length,
+        taggedValues: tagged,
+      };
+      stockTwitsParsed = await getStockTwitsSentiment(ticker);
+    } else {
+      stockTwitsRaw = { httpStatus: stRes.status, error: "HTTP error" };
+    }
   } catch (e) {
-    groupResult = { ok: false, status: 0, count: 0, error: String(e) };
+    stockTwitsRaw = { error: String(e) };
   }
 
   return NextResponse.json({
-    keyPresent: true,
-    keyLength: key.length,
-    keyPreview: key.slice(0, 6) + "..." + key.slice(-4),
-    aggregatesTest: aggResult.ok ? "PASS" : `FAIL (HTTP ${aggResult.status})`,
-    groupedDailyTest: groupResult.ok ? `PASS (${groupResult.count} tickers)` : `FAIL (HTTP ${groupResult.status}) — ${groupResult.error ?? ""}`,
-    details: { aggResult, groupResult },
-  });
+    ticker,
+    env: {
+      POLYGON_API_KEY: polygonKey ? `set (${polygonKey.length} chars)` : "MISSING — scans will fail",
+      FINNHUB_API_KEY: finnhubKey ? `set (${finnhubKey.length} chars)` : "NOT SET — news chips will never show",
+    },
+    polygonTest,
+    finnhubNews: newsResult,
+    stockTwits: {
+      raw: stockTwitsRaw,
+      parsed: stockTwitsParsed,
+      note: "parsed is null if totalMessages < 2 or no sentiment tags found",
+    },
+  }, { headers: { "Cache-Control": "no-store" } });
 }
