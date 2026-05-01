@@ -34,6 +34,10 @@ async function get<T>(url: string, retries = 3): Promise<T> {
 // Individual ticker OHLCV — available on ALL Polygon tiers including free
 export async function getDailyBars(ticker: string, days = 252): Promise<PolygonBar[]> {
   const to = new Date();
+  // Subtract 1 day so we only request complete EOD bars and never get a partial
+  // intraday bar that shows the open price instead of the session close.
+  // Live intraday data is layered on top via enrichBarsWithToday().
+  to.setDate(to.getDate() - 1);
   const from = new Date();
   from.setDate(from.getDate() - Math.ceil(days * 1.5));
   const url = `${BASE}/v2/aggs/ticker/${ticker}/range/1/day/${from.toISOString().slice(0, 10)}/${to.toISOString().slice(0, 10)}?adjusted=true&sort=asc&limit=500&apiKey=${key()}`;

@@ -32,6 +32,7 @@ const SMALL_CAP_UNIVERSE = [
   "ACMR", "DIOD", "FORM", "ONTO",
   "IONQ",
   "OPFI", "ENVA",
+  // VERV removed — acquired, stale data scores unrealistically high
 ];
 
 function polygonToOHLCV(bar: PolygonBar): OHLCVBar {

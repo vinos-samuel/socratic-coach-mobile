@@ -10,7 +10,7 @@ export interface StockTwitsSentiment {
 
 type StockTwitsMessage = {
   entities?: {
-    sentiment?: { basic?: "Bullish" | "Bearish" } | null;
+    sentiment?: { basic?: string } | null;
   } | null;
 };
 
@@ -30,31 +30,50 @@ export async function getStockTwitsSentiment(
 ): Promise<StockTwitsSentiment | null> {
   const symbol = toStockTwitsSymbol(ticker);
   try {
-    const res = await fetch(
-      `https://api.stocktwits.com/api/2/streams/symbol/${symbol}.json`,
-      {
-        cache: "no-store",
-        headers: { "User-Agent": "StockCur8d/1.0" },
-      }
-    );
-    if (!res.ok) return null;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    let res: Response;
+    try {
+      res = await fetch(
+        `https://api.stocktwits.com/api/2/streams/symbol/${symbol}.json`,
+        {
+          cache: "no-store",
+          headers: { "User-Agent": "Mozilla/5.0 StockCur8d/1.0" },
+          signal: controller.signal,
+        }
+      );
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (!res.ok) {
+      console.warn(`StockTwits ${ticker}: HTTP ${res.status}`);
+      return null;
+    }
+
     const data = await res.json() as StockTwitsResponse;
-    if (data.response?.status !== 200 || !Array.isArray(data.messages)) return null;
+
+    // Only require a messages array — don't fail on response.status variations
+    if (!Array.isArray(data.messages) || data.messages.length === 0) return null;
 
     let bullish = 0;
     let bearish = 0;
     for (const msg of data.messages) {
       const basic = msg.entities?.sentiment?.basic;
-      if (basic === "Bullish") bullish++;
-      else if (basic === "Bearish") bearish++;
+      if (!basic) continue;
+      // API returns "Bullish" / "Bearish" (capitalised) but guard both cases
+      if (basic.toLowerCase() === "bullish") bullish++;
+      else if (basic.toLowerCase() === "bearish") bearish++;
     }
 
     const total = bullish + bearish;
-    if (total < 3) return null; // too few tagged messages to be meaningful
+    if (total < 2) return null; // need at least 2 tagged messages for a meaningful ratio
 
     const bullishPct = Math.round((bullish / total) * 100);
     return { bullishPct, bearishPct: 100 - bullishPct, total };
-  } catch {
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes("abort")) console.warn(`StockTwits ${ticker}:`, msg);
     return null;
   }
 }
