@@ -74,7 +74,7 @@ export function PickCard({ pick, rank }: PickCardProps) {
               📰 {pick.newsCount} news
             </span>
           ) : null}
-          {pick.sentiment && pick.sentiment.total >= 3 ? (
+          {pick.sentiment && pick.sentiment.total >= 2 ? (
             <span className={`text-xs rounded-md px-2 py-0.5 font-medium border ${
               pick.sentiment.bullishPct >= 65
                 ? "bg-green-500/10 text-green-400 border-green-500/20"
