@@ -146,9 +146,12 @@ async function runScan(
         if (daysBehind > 5) return;
 
         const snap = snapshotMap.get(ticker);
-        const quote = snap
-          ? snapshotToQuote(snap)
-          : await getFinnhubQuote(ticker);
+        // On free Polygon tier, snapshot is empty. Calling getFinnhubQuote() for
+        // every universe ticker in parallel (35+ calls) exhausts the 60 req/min
+        // Finnhub limit before news enrichment can run. Skip per-ticker live price
+        // on free tier and use yesterday's EOD close from getDailyBars instead.
+        // Live intraday prices are available automatically when Polygon Starter is active.
+        const quote = snap ? snapshotToQuote(snap) : null;
 
         const bars = rawBars.map(polygonToOHLCV);
         const pick = buildPick(ticker, bars, quote, benchmarkBars, "stock", options);
@@ -174,13 +177,17 @@ async function runScan(
 
       if (details.status === "fulfilled") pick.name = details.value.name;
 
-      if (news.status === "fulfilled" && news.value && news.value.count > 0) {
-        pick.newsCount = news.value.count;
-        pick.latestHeadline = news.value.latest ?? undefined;
+      const newsVal = news.status === "fulfilled" ? news.value : null;
+      const sentVal = sentiment.status === "fulfilled" ? sentiment.value : null;
+      console.log(`[Enrich] ${pick.ticker}: news=${newsVal ? `${newsVal.count} articles` : "null"} | sentiment=${sentVal ? `${sentVal.bullishPct}% bull (${sentVal.total} tagged)` : "null"}`);
+
+      if (newsVal && newsVal.count > 0) {
+        pick.newsCount = newsVal.count;
+        pick.latestHeadline = newsVal.latest ?? undefined;
       }
 
-      if (sentiment.status === "fulfilled" && sentiment.value) {
-        pick.sentiment = sentiment.value;
+      if (sentVal) {
+        pick.sentiment = sentVal;
       }
     })
   );
