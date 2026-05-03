@@ -234,7 +234,7 @@ export async function runCryptoScan(limit = 6): Promise<MomentumPick[]> {
           benchmarkName: "Bitcoin",
           maxStopPct: 0.08,
         });
-        if (!scored || scored.score < 45) return;
+        if (!scored || scored.score < 35) return;
 
         const price = candles[candles.length - 1].close;
         const prevPrice = candles[candles.length - 2]?.close ?? price;
