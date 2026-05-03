@@ -6,7 +6,7 @@ import {
   PolygonSnapshotEntry,
   PolygonBar,
 } from "./polygon";
-import { getCoinbaseDailyCandles, TOP_CRYPTO_PAIRS } from "./coinbase";
+import { getCoinbase4hrCandles, TOP_CRYPTO_PAIRS } from "./coinbase";
 import { scoreBars } from "./scoring";
 import { getFinnhubQuote, enrichBarsWithToday, getFinnhubNews, FinnhubQuote } from "./finnhub";
 import { getStockTwitsSentiment } from "./stocktwits";
@@ -104,6 +104,7 @@ function buildPick(
     tradeSetup: scored.tradeSetup,
     signals: scored.signals,
     ruleBasedCommentary: scored.ruleBasedCommentary,
+    distanceFromEma9Pct: +scored.distanceFromEma9Pct.toFixed(1),
     type,
   };
 }
@@ -214,8 +215,8 @@ export function runSmallCapScan(limit = 10): Promise<MomentumPick[]> {
 }
 
 export async function runCryptoScan(limit = 6): Promise<MomentumPick[]> {
-  // BTC as the crypto benchmark — "is this coin outperforming Bitcoin?"
-  const btcBars = await getCoinbaseDailyCandles("BTC-USD", 252);
+  // BTC as the crypto benchmark — "is this coin outperforming Bitcoin?" (4H candles)
+  const btcBars = await getCoinbase4hrCandles("BTC-USD", 50);
   const btcLastBarTime = btcBars[btcBars.length - 1].time;
 
   const results: MomentumPick[] = [];
@@ -223,11 +224,11 @@ export async function runCryptoScan(limit = 6): Promise<MomentumPick[]> {
   await Promise.allSettled(
     TOP_CRYPTO_PAIRS.map(async ({ productId, name }) => {
       try {
-        const candles = await getCoinbaseDailyCandles(productId, 252);
+        const candles = await getCoinbase4hrCandles(productId, 50);
         if (candles.length < 55) return;
 
-        const daysBehind = (btcLastBarTime - candles[candles.length - 1].time) / 86400;
-        if (daysBehind > 2) return;
+        const hoursBehind = (btcLastBarTime - candles[candles.length - 1].time) / 3600;
+        if (hoursBehind > 12) return;
 
         const scored = scoreBars(candles, btcBars, productId, name, {
           benchmarkName: "Bitcoin",
@@ -257,6 +258,7 @@ export async function runCryptoScan(limit = 6): Promise<MomentumPick[]> {
           tradeSetup: scored.tradeSetup,
           signals: scored.signals,
           ruleBasedCommentary: scored.ruleBasedCommentary,
+          distanceFromEma9Pct: +scored.distanceFromEma9Pct.toFixed(1),
           type: "crypto",
         });
       } catch {

@@ -62,6 +62,8 @@ export interface MomentumPick {
     bearishPct: number;
     total: number;
   };
+  distanceFromEma9Pct?: number;
+  isSpeculative?: boolean;
 }
 
 export interface ScannerResponse {

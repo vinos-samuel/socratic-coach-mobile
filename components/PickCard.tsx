@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { TrendingUp, TrendingDown, Zap } from "lucide-react";
+import { TrendingUp, TrendingDown, Zap, FlaskConical } from "lucide-react";
 import { MomentumPick } from "@/types";
 import { Sparkline } from "./Sparkline";
 import { ScoreBadge } from "./ScoreBadge";
@@ -32,6 +32,11 @@ export function PickCard({ pick, rank }: PickCardProps) {
               {pick.type === "crypto" && (
                 <span className="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full px-2 py-0.5">CRYPTO</span>
               )}
+              {pick.isSpeculative && (
+                <span className="text-xs bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded-full px-2 py-0.5 flex items-center gap-1">
+                  <FlaskConical className="w-2.5 h-2.5" />SPEC
+                </span>
+              )}
             </div>
             <div className="text-[#6b7280] text-xs mt-0.5 truncate max-w-[140px]">{pick.name}</div>
           </div>
@@ -47,6 +52,19 @@ export function PickCard({ pick, rank }: PickCardProps) {
             {positive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
             {positive ? "+" : ""}{pick.changePct.toFixed(2)}%
           </span>
+          {pick.distanceFromEma9Pct !== undefined && (
+            <span className={`text-xs font-mono ml-auto ${
+              Math.abs(pick.distanceFromEma9Pct) <= 2
+                ? "text-green-400"
+                : pick.distanceFromEma9Pct > 2 && pick.distanceFromEma9Pct <= 6
+                ? "text-amber-400"
+                : pick.distanceFromEma9Pct > 6
+                ? "text-red-400"
+                : "text-[#6b7280]"
+            }`}>
+              {pick.distanceFromEma9Pct >= 0 ? "+" : ""}{pick.distanceFromEma9Pct.toFixed(1)}% 9EMA
+            </span>
+          )}
         </div>
 
         {/* Sparkline */}

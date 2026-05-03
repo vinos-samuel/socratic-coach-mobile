@@ -27,6 +27,7 @@ export interface ScoringResult {
   signals: MomentumSignal[];
   tradeSetup: TradeSetup;
   ruleBasedCommentary: string;
+  distanceFromEma9Pct: number;
 }
 
 export function scoreBars(
@@ -82,10 +83,13 @@ export function scoreBars(
   const tradeSetup = buildTradeSetup(lastClose, lastEma9, atr, anchoredVwap, options.maxStopPct ?? 0.05);
   const ruleBasedCommentary = buildCommentary(ticker, name, score, rsRating, volumeRatio, lastRsi, tradeSetup, signals);
 
+  const distanceFromEma9Pct = lastEma9 > 0 ? ((lastClose - lastEma9) / lastEma9) * 100 : 0;
+
   return {
     score, rsRating, volumeRatio, rsi: lastRsi,
     emaStack, emaCross921, aboveVwap, anchoredVwap,
     ema9, ema21, ema50, rsiSeries, signals, tradeSetup, ruleBasedCommentary,
+    distanceFromEma9Pct,
   };
 }
 

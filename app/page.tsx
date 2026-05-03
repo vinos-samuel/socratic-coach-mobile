@@ -2,23 +2,25 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { TrendingUp, Zap, AlertCircle, RefreshCw, FlameKindling } from "lucide-react";
+import { TrendingUp, Zap, AlertCircle, RefreshCw, FlameKindling, FlaskConical } from "lucide-react";
 import { ScannerResponse } from "@/types";
 import { PickCard } from "@/components/PickCard";
 import { MarketStatus } from "@/components/MarketStatus";
 
-type Tab = "stocks" | "smallcap" | "crypto";
+type Tab = "stocks" | "smallcap" | "crypto" | "speculative";
 
 const TABS: { id: Tab; label: string; api: string }[] = [
-  { id: "stocks",   label: "🇺🇸 Large Cap", api: "/api/scanner"  },
-  { id: "smallcap", label: "⚡ Small Cap",  api: "/api/smallcap" },
-  { id: "crypto",   label: "₿ Crypto",     api: "/api/crypto"   },
+  { id: "stocks",      label: "🇺🇸 Large Cap",  api: "/api/scanner"     },
+  { id: "smallcap",   label: "⚡ Small Cap",    api: "/api/smallcap"    },
+  { id: "crypto",     label: "₿ Crypto 4H",    api: "/api/crypto"      },
+  { id: "speculative", label: "🎯 Speculative", api: "/api/speculative" },
 ];
 
 const DISCLAIMERS: Record<Tab, string> = {
   stocks: "Picks scored 0–100 vs S&P 500 using RS Rating, EMA stack (9/21/50), volume surge, RSI zone (55–80), and anchored VWAP. Score threshold: 65.",
   smallcap: "Picks scored 0–100 vs Russell 2000 (IWM). Score threshold: 55. Small caps carry significantly higher volatility and liquidity risk — position size smaller than large caps. Use wider stops and tighter position limits.",
-  crypto: "Picks scored using 4-hr candles vs their own baseline. Crypto is highly volatile and trades 24/7. Past momentum does not guarantee future results.",
+  crypto: "Picks scored using 4-hour candles (22 pairs) vs Bitcoin baseline. Crypto is highly volatile and trades 24/7. Past momentum does not guarantee future results.",
+  speculative: "Speculative picks scored using VCP (Volatility Contraction Pattern) + Stage 1→2 EMA 50 recovery signals. These are beaten-down stocks showing early base-building. Score threshold: 40. HIGH RISK — use 1/2 normal position size, honour your stop-loss, and expect higher failure rate than large-cap momentum picks.",
 };
 
 async function fetchScanner(tab: Tab, forceRefresh = false): Promise<ScannerResponse> {
@@ -51,7 +53,8 @@ export default function DashboardPage() {
 
   const scanLabel = tab === "stocks" ? "S&P 500 large caps"
     : tab === "smallcap" ? "small cap universe"
-    : "top crypto pairs";
+    : tab === "crypto" ? "top crypto pairs (4H)"
+    : "speculative universe";
 
   return (
     <div className="min-h-screen bg-[#0d1210]">
@@ -99,10 +102,15 @@ export default function DashboardPage() {
         <div className="flex items-center gap-2 mb-4">
           {tab === "smallcap"
             ? <FlameKindling className="w-5 h-5 text-amber-400" />
+            : tab === "speculative"
+            ? <FlaskConical className="w-5 h-5 text-purple-400" />
             : <TrendingUp className="w-5 h-5 text-emerald-400" />
           }
           <h1 className="text-white font-bold text-xl">
-            {tab === "stocks" ? "Large Cap Momentum" : tab === "smallcap" ? "Small Cap Runners" : "Crypto Momentum"}
+            {tab === "stocks" ? "Large Cap Momentum"
+              : tab === "smallcap" ? "Small Cap Runners"
+              : tab === "crypto" ? "Crypto Momentum (4H)"
+              : "Speculative Setups"}
           </h1>
           {data?.picks && (
             <span className="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full px-2.5 py-0.5 font-medium">
@@ -118,6 +126,17 @@ export default function DashboardPage() {
             <p className="text-amber-300/80 text-xs leading-relaxed">
               Higher reward, higher risk. Small caps can move 10–30% in a single session.
               Use smaller position sizes, honour your stop-loss, and never chase a breakout more than 2% above the entry zone.
+            </p>
+          </div>
+        )}
+
+        {/* Speculative risk callout */}
+        {tab === "speculative" && (
+          <div className="flex items-start gap-3 bg-purple-950/30 border border-purple-500/30 rounded-xl p-3 mb-5">
+            <FlaskConical className="w-4 h-4 text-purple-400 flex-shrink-0 mt-0.5" />
+            <p className="text-purple-300/80 text-xs leading-relaxed">
+              VCP / Stage 1→2 setups — beaten-down stocks showing ATR compression and EMA 50 recovery.
+              These have higher failure rates than large-cap momentum. Use <strong className="text-purple-300">half normal position size</strong>, wider stops (6–8%), and target 15–25% gains over 2–6 weeks.
             </p>
           </div>
         )}
@@ -146,11 +165,13 @@ export default function DashboardPage() {
         {/* No picks */}
         {!isLoading && !isError && data?.picks.length === 0 && (
           <div className="text-center py-20">
-            <p className="text-[#6b7280] text-base">No high-conviction setups found right now.</p>
+            <p className="text-[#6b7280] text-base">No setups found right now.</p>
             <p className="text-[#4b5563] text-sm mt-2">
               {tab === "smallcap"
-                ? "Score threshold is 55 vs Russell 2000. Conditions may be choppy or no small caps are in momentum phase."
-                : "The scanner requires score ≥ 55. Market conditions may be choppy."}
+                ? "Score threshold is 55 vs Russell 2000. Conditions may be choppy."
+                : tab === "speculative"
+                ? "Score threshold is 40 on VCP/Stage 1→2 criteria. No stocks show sufficient ATR compression or EMA 50 recovery right now."
+                : "The scanner requires score ≥ 65. Market conditions may be choppy."}
             </p>
           </div>
         )}
