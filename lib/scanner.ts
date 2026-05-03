@@ -215,7 +215,7 @@ export function runSmallCapScan(limit = 10): Promise<MomentumPick[]> {
 }
 
 export async function runCryptoScan(limit = 6): Promise<MomentumPick[]> {
-  // BTC as the crypto benchmark — "is this coin outperforming Bitcoin?" (4H candles)
+  // BTC as the crypto benchmark — "is this coin outperforming Bitcoin?" (6H candles)
   const btcBars = await getCoinbase4hrCandles("BTC-USD", 50);
   const btcLastBarTime = btcBars[btcBars.length - 1].time;
 

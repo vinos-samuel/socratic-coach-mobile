@@ -38,14 +38,15 @@ export async function getCoinbaseDailyCandles(
     .sort((a, b) => a.time - b.time);
 }
 
-// 4-hour candles — more signals than daily, max 300 per call (50 days @ 6/day = 300)
+// 6-hour candles — Coinbase Exchange only supports: 60,300,900,3600,21600,86400
+// 21600s = 6H; 50 days × 4 candles/day = 200 candles, well within 300 limit
 export async function getCoinbase4hrCandles(
   productId: string,
   days = 50
 ): Promise<CoinbaseCandle[]> {
   const end = Math.floor(Date.now() / 1000);
-  const start = end - Math.min(days, 50) * 86400; // Coinbase caps at 300 candles
-  const url = `${BASE}/products/${productId}/candles?start=${start}&end=${end}&granularity=14400`;
+  const start = end - Math.min(days, 75) * 86400; // 75 days × 4 candles = 300 max
+  const url = `${BASE}/products/${productId}/candles?start=${start}&end=${end}&granularity=21600`;
   const raw = await get<number[][]>(url);
   return raw
     .map(([t, l, h, o, c, v]) => ({ time: t, open: o, high: h, low: l, close: c, volume: v }))

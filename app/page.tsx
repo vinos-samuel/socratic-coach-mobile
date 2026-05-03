@@ -12,14 +12,14 @@ type Tab = "stocks" | "smallcap" | "crypto" | "speculative";
 const TABS: { id: Tab; label: string; api: string }[] = [
   { id: "stocks",      label: "🇺🇸 Large Cap",  api: "/api/scanner"     },
   { id: "smallcap",   label: "⚡ Small Cap",    api: "/api/smallcap"    },
-  { id: "crypto",     label: "₿ Crypto 4H",    api: "/api/crypto"      },
+  { id: "crypto",     label: "₿ Crypto 6H",    api: "/api/crypto"      },
   { id: "speculative", label: "🎯 Speculative", api: "/api/speculative" },
 ];
 
 const DISCLAIMERS: Record<Tab, string> = {
   stocks: "Picks scored 0–100 vs S&P 500 using RS Rating, EMA stack (9/21/50), volume surge, RSI zone (55–80), and anchored VWAP. Score threshold: 65.",
   smallcap: "Picks scored 0–100 vs Russell 2000 (IWM). Score threshold: 55. Small caps carry significantly higher volatility and liquidity risk — position size smaller than large caps. Use wider stops and tighter position limits.",
-  crypto: "Picks scored using 4-hour candles (22 pairs) vs Bitcoin baseline. Crypto is highly volatile and trades 24/7. Past momentum does not guarantee future results.",
+  crypto: "Picks scored using 6-hour candles (22 pairs) vs Bitcoin baseline. Crypto is highly volatile and trades 24/7. Past momentum does not guarantee future results.",
   speculative: "Speculative picks scored using VCP (Volatility Contraction Pattern) + Stage 1→2 EMA 50 recovery signals. These are beaten-down stocks showing early base-building. Score threshold: 40. HIGH RISK — use 1/2 normal position size, honour your stop-loss, and expect higher failure rate than large-cap momentum picks.",
 };
 
@@ -109,7 +109,7 @@ export default function DashboardPage() {
           <h1 className="text-white font-bold text-xl">
             {tab === "stocks" ? "Large Cap Momentum"
               : tab === "smallcap" ? "Small Cap Runners"
-              : tab === "crypto" ? "Crypto Momentum (4H)"
+              : tab === "crypto" ? "Crypto Momentum (6H)"
               : "Speculative Setups"}
           </h1>
           {data?.picks && (
