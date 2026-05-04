@@ -5,12 +5,12 @@ import { MomentumPick, ScannerResponse } from "@/types";
 
 export const dynamic = "force-dynamic";
 
-const CACHE_TTL = 30 * 60 * 1000;
 let speculativeCache: { picks: MomentumPick[]; ts: number } | null = null;
 
 export async function GET(req: Request) {
   const forceRefresh = new URL(req.url).searchParams.get("refresh") === "1";
   const now = Date.now();
+  const CACHE_TTL = isMarketOpen() ? 10 * 60 * 1000 : 60 * 60 * 1000;
 
   if (!forceRefresh && speculativeCache && now - speculativeCache.ts < CACHE_TTL) {
     const nextScanIn = Math.round((CACHE_TTL - (now - speculativeCache.ts)) / 1000);

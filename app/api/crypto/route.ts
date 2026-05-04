@@ -4,12 +4,13 @@ import { MomentumPick, ScannerResponse } from "@/types";
 
 export const dynamic = "force-dynamic";
 
-const CACHE_TTL = 30 * 60 * 1000;
 let cryptoCache: { picks: MomentumPick[]; ts: number } | null = null;
 
 export async function GET(req: Request) {
   const forceRefresh = new URL(req.url).searchParams.get("refresh") === "1";
   const now = Date.now();
+  // Crypto trades 24/7 — always use 10 min cache for fresh prices
+  const CACHE_TTL = 10 * 60 * 1000;
 
   if (!forceRefresh && cryptoCache && now - cryptoCache.ts < CACHE_TTL) {
     const nextScanIn = Math.round((CACHE_TTL - (now - cryptoCache.ts)) / 1000);

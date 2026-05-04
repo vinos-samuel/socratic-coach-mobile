@@ -92,6 +92,11 @@ export function PickCard({ pick, rank }: PickCardProps) {
               📰 {pick.newsCount} news
             </span>
           ) : null}
+          {pick.latestHeadline && (
+            <p className="w-full text-[10px] text-[#9ca3af] leading-tight mt-0.5 line-clamp-2 italic">
+              {pick.latestHeadline}
+            </p>
+          )}
           {pick.sentiment && pick.sentiment.total >= 2 ? (
             <span className={`text-xs rounded-md px-2 py-0.5 font-medium border ${
               pick.sentiment.bullishPct >= 65

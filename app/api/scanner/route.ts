@@ -5,12 +5,13 @@ import { MomentumPick, ScannerResponse } from "@/types";
 
 export const dynamic = "force-dynamic";
 
-const CACHE_TTL = 30 * 60 * 1000; // 30 minutes — picks stay locked within this window
 let stockCache: { picks: MomentumPick[]; ts: number } | null = null;
 
 export async function GET(req: Request) {
   const forceRefresh = new URL(req.url).searchParams.get("refresh") === "1";
   const now = Date.now();
+  // Fresher prices during market hours; no need to rescan after close
+  const CACHE_TTL = isMarketOpen() ? 10 * 60 * 1000 : 60 * 60 * 1000;
 
   if (!forceRefresh && stockCache && now - stockCache.ts < CACHE_TTL) {
     const nextScanIn = Math.round((CACHE_TTL - (now - stockCache.ts)) / 1000);
