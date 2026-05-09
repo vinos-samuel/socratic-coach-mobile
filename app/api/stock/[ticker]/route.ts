@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDailyBars, getTickerDetails } from "@/lib/polygon";
-import { getFinnhubQuote } from "@/lib/finnhub";
+import { getFinnhubQuote, getFinnhubNews } from "@/lib/finnhub";
 import { scoreBars } from "@/lib/scoring";
 import { calculateEMA, calculateRSI, calculateAnchoredVWAP } from "@/lib/indicators";
 import { OHLCVBar, StockDetailResponse } from "@/types";
@@ -11,7 +11,6 @@ function polygonToOHLCV(bar: { t: number; o: number; h: number; l: number; c: nu
   return { time: Math.floor(bar.t / 1000), open: bar.o, high: bar.h, low: bar.l, close: bar.c, volume: bar.v };
 }
 
-// ISO date string (UTC) from unix seconds — used for bar date comparisons
 function toDateStr(unixSeconds: number): string {
   return new Date(unixSeconds * 1000).toISOString().slice(0, 10);
 }
@@ -19,11 +18,12 @@ function toDateStr(unixSeconds: number): string {
 export async function GET(_req: Request, { params }: { params: Promise<{ ticker: string }> }) {
   const { ticker } = await params;
   try {
-    const [rawBars, spyRaw, details, quote] = await Promise.all([
+    const [rawBars, spyRaw, details, quote, newsResult] = await Promise.all([
       getDailyBars(ticker, 252),
       getDailyBars("SPY", 252),
       getTickerDetails(ticker).catch(() => ({ name: ticker })),
       getFinnhubQuote(ticker),
+      getFinnhubNews(ticker, 72).catch(() => null),
     ]);
 
     let bars = rawBars.map(polygonToOHLCV);
@@ -32,13 +32,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
     let priceSource: "live" | "eod" = "eod";
     let livePrice: number | undefined;
 
-    // If Finnhub returned a valid quote with a session open price, try to use it
     if (quote && quote.c > 0 && quote.o > 0 && quote.t > 0) {
       const quoteDate = toDateStr(quote.t);
       const lastBarDate = toDateStr(bars[bars.length - 1].time);
 
       if (quoteDate > lastBarDate) {
-        // Today's bar is missing from Polygon — append a synthetic one from Finnhub OHLC
         const syntheticTime = Math.floor(new Date(quoteDate + "T00:00:00.000Z").getTime() / 1000);
         bars = [...bars, {
           time: syntheticTime,
@@ -46,12 +44,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
           high: quote.h,
           low: quote.l,
           close: quote.c,
-          volume: 0, // Finnhub quote endpoint doesn't include volume
+          volume: 0,
         }];
         priceSource = "live";
         livePrice = quote.c;
       } else if (quoteDate === lastBarDate) {
-        // Same date — update the last bar's close/high/low with fresher Finnhub data
         const last = bars[bars.length - 1];
         bars = [...bars.slice(0, -1), {
           ...last,
@@ -119,6 +116,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
       livePrice: livePrice ? +livePrice.toFixed(2) : undefined,
       priceSource,
       dataAsOf,
+      newsArticles: newsResult?.articles ?? [],
     };
 
     return NextResponse.json(response, { headers: { "Cache-Control": "no-store, max-age=0" } });

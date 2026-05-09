@@ -35,9 +35,6 @@ function toDateStr(unixSeconds: number): string {
   return new Date(unixSeconds * 1000).toISOString().slice(0, 10);
 }
 
-// Splice today's Finnhub OHLC into the bar array so the full indicator +
-// scoring pipeline sees current price action, not yesterday's EOD close.
-// Returns the original array unchanged if quote is null or stale.
 export function enrichBarsWithToday(bars: OHLCVBar[], quote: FinnhubQuote | null): OHLCVBar[] {
   if (!quote || quote.c <= 0 || quote.o <= 0 || quote.t <= 0) return bars;
 
@@ -45,7 +42,6 @@ export function enrichBarsWithToday(bars: OHLCVBar[], quote: FinnhubQuote | null
   const lastBarDate = toDateStr(bars[bars.length - 1].time);
 
   if (quoteDate > lastBarDate) {
-    // Today's session is not in Polygon yet — append a synthetic bar
     const syntheticTime = Math.floor(new Date(quoteDate + "T00:00:00.000Z").getTime() / 1000);
     return [...bars, {
       time: syntheticTime,
@@ -58,7 +54,6 @@ export function enrichBarsWithToday(bars: OHLCVBar[], quote: FinnhubQuote | null
   }
 
   if (quoteDate === lastBarDate) {
-    // Same session — update the last bar with fresher intraday data
     const last = bars[bars.length - 1];
     return [...bars.slice(0, -1), {
       ...last,
@@ -71,12 +66,10 @@ export function enrichBarsWithToday(bars: OHLCVBar[], quote: FinnhubQuote | null
   return bars;
 }
 
-// Returns count of articles in the last `hoursBack` hours plus the latest headline.
-// Returns null if no API key, request fails, or no articles found.
 export async function getFinnhubNews(
   ticker: string,
   hoursBack = 48
-): Promise<{ count: number; latest: string | null } | null> {
+): Promise<{ count: number; latest: string | null; articles: Array<{ headline: string; datetime: number; source: string; url?: string }> } | null> {
   const apiKey = process.env.FINNHUB_API_KEY;
   if (!apiKey) return null;
   try {
@@ -88,11 +81,14 @@ export async function getFinnhubNews(
       { cache: "no-store" }
     );
     if (!res.ok) return null;
-    const articles = await res.json() as Array<{ headline: string; datetime: number }>;
+    const articles = await res.json() as Array<{ headline: string; datetime: number; source: string; url?: string }>;
     if (!Array.isArray(articles) || articles.length === 0) return null;
-    // Sort descending by datetime so articles[0] is the most recent
     articles.sort((a, b) => b.datetime - a.datetime);
-    return { count: articles.length, latest: articles[0]?.headline ?? null };
+    return {
+      count: articles.length,
+      latest: articles[0]?.headline ?? null,
+      articles: articles.slice(0, 10).map((a) => ({ headline: a.headline, datetime: a.datetime, source: a.source, url: a.url })),
+    };
   } catch {
     return null;
   }
