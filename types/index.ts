@@ -64,6 +64,12 @@ export interface MomentumPick {
   };
   distanceFromEma9Pct?: number;
   isSpeculative?: boolean;
+  volumeSparkline?: number[];
+}
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
 }
 
 export interface ScannerResponse {
@@ -98,6 +104,7 @@ export interface StockDetailResponse {
   livePrice?: number;      // last trade price if Polygon returns it
   priceSource: "live" | "eod";
   dataAsOf: string;        // e.g. "Apr 23" — date of last complete bar
+  newsArticles?: Array<{ headline: string; datetime: number; source: string; url?: string }>;
 }
 
 export interface DeepAnalysisRequest {

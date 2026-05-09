@@ -309,6 +309,7 @@ export async function runSpeculativeScan(limit = 10): Promise<MomentumPick[]> {
           emaCross921: scored.emaCross921,
           aboveVwap: scored.aboveVwap,
           sparkline: bars.slice(-30).map((b) => b.close),
+          volumeSparkline: bars.slice(-20).map((b) => b.volume),
           tradeSetup: scored.tradeSetup,
           signals: scored.signals,
           ruleBasedCommentary: scored.ruleBasedCommentary,

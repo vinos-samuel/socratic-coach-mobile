@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getDailyBars, getTickerDetails } from "@/lib/polygon";
-import { getFinnhubQuote } from "@/lib/finnhub";
+import { getFinnhubQuote, getFinnhubNews } from "@/lib/finnhub";
 import { scoreBars } from "@/lib/scoring";
 import { calculateEMA, calculateRSI, calculateAnchoredVWAP } from "@/lib/indicators";
 import { OHLCVBar, StockDetailResponse } from "@/types";
@@ -19,11 +19,12 @@ function toDateStr(unixSeconds: number): string {
 export async function GET(_req: Request, { params }: { params: Promise<{ ticker: string }> }) {
   const { ticker } = await params;
   try {
-    const [rawBars, spyRaw, details, quote] = await Promise.all([
+    const [rawBars, spyRaw, details, quote, newsResult] = await Promise.all([
       getDailyBars(ticker, 252),
       getDailyBars("SPY", 252),
       getTickerDetails(ticker).catch(() => ({ name: ticker })),
       getFinnhubQuote(ticker),
+      getFinnhubNews(ticker, 72).catch(() => null),
     ]);
 
     let bars = rawBars.map(polygonToOHLCV);
@@ -119,6 +120,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
       livePrice: livePrice ? +livePrice.toFixed(2) : undefined,
       priceSource,
       dataAsOf,
+      newsArticles: newsResult?.articles ?? [],
     };
 
     return NextResponse.json(response, { headers: { "Cache-Control": "no-store, max-age=0" } });

@@ -1,30 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { TrendingUp, Zap, AlertCircle, RefreshCw, FlameKindling, FlaskConical } from "lucide-react";
-import { ScannerResponse } from "@/types";
+import { TrendingUp, Zap, AlertCircle, RefreshCw, FlameKindling, FlaskConical, Star } from "lucide-react";
+import { ScannerResponse, MomentumPick } from "@/types";
 import { PickCard } from "@/components/PickCard";
 import { MarketStatus } from "@/components/MarketStatus";
 
-type Tab = "stocks" | "smallcap" | "crypto" | "speculative";
+type Tab = "stocks" | "smallcap" | "crypto" | "speculative" | "watchlist";
 
-const TABS: { id: Tab; label: string; api: string }[] = [
+const SCANNER_TABS: { id: Exclude<Tab, "watchlist">; label: string; api: string }[] = [
   { id: "stocks",      label: "🇺🇸 Large Cap",  api: "/api/scanner"     },
   { id: "smallcap",   label: "⚡ Small Cap",    api: "/api/smallcap"    },
-  { id: "crypto",     label: "₿ Crypto 4H",    api: "/api/crypto"      },
+  { id: "crypto",     label: "₿ Crypto 6H",    api: "/api/crypto"      },
   { id: "speculative", label: "🎯 Speculative", api: "/api/speculative" },
 ];
 
-const DISCLAIMERS: Record<Tab, string> = {
+const ALL_TABS: { id: Tab; label: string }[] = [
+  ...SCANNER_TABS,
+  { id: "watchlist", label: "★ Watchlist" },
+];
+
+const DISCLAIMERS: Record<Exclude<Tab, "watchlist">, string> = {
   stocks: "Picks scored 0–100 vs S&P 500 using RS Rating, EMA stack (9/21/50), volume surge, RSI zone (55–80), and anchored VWAP. Score threshold: 65.",
   smallcap: "Picks scored 0–100 vs Russell 2000 (IWM). Score threshold: 55. Small caps carry significantly higher volatility and liquidity risk — position size smaller than large caps. Use wider stops and tighter position limits.",
-  crypto: "Picks scored using 4-hour candles (22 pairs) vs Bitcoin baseline. Crypto is highly volatile and trades 24/7. Past momentum does not guarantee future results.",
+  crypto: "Picks scored using 6-hour candles (22 pairs) vs Bitcoin baseline. Crypto is highly volatile and trades 24/7. Past momentum does not guarantee future results.",
   speculative: "Speculative picks scored using VCP (Volatility Contraction Pattern) + Stage 1→2 EMA 50 recovery signals. These are beaten-down stocks showing early base-building. Score threshold: 40. HIGH RISK — use 1/2 normal position size, honour your stop-loss, and expect higher failure rate than large-cap momentum picks.",
 };
 
-async function fetchScanner(tab: Tab, forceRefresh = false): Promise<ScannerResponse> {
-  const base = TABS.find((t) => t.id === tab)!.api;
+async function fetchScanner(tab: Exclude<Tab, "watchlist">, forceRefresh = false): Promise<ScannerResponse> {
+  const base = SCANNER_TABS.find((t) => t.id === tab)!.api;
   const url = forceRefresh ? `${base}?refresh=1` : base;
   const res = await fetch(url, { cache: "no-store" });
   const json = await res.json();
@@ -35,15 +40,31 @@ async function fetchScanner(tab: Tab, forceRefresh = false): Promise<ScannerResp
 export default function DashboardPage() {
   const [tab, setTab] = useState<Tab>("stocks");
   const [forceRefresh, setForceRefresh] = useState(false);
+  const [watchlistPicks, setWatchlistPicks] = useState<MomentumPick[]>([]);
+
+  const isWatchlist = tab === "watchlist";
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery<ScannerResponse>({
     queryKey: ["scanner", tab],
-    queryFn: () => fetchScanner(tab, forceRefresh),
+    queryFn: () => fetchScanner(tab as Exclude<Tab, "watchlist">, forceRefresh),
     staleTime: 29 * 60 * 1000,
     refetchOnWindowFocus: false,
+    enabled: !isWatchlist,
   });
 
+  useEffect(() => {
+    if (isWatchlist) {
+      const saved = localStorage.getItem("watchlist");
+      setWatchlistPicks(saved ? JSON.parse(saved) : []);
+    }
+  }, [isWatchlist]);
+
   function handleRefresh() {
+    if (isWatchlist) {
+      const saved = localStorage.getItem("watchlist");
+      setWatchlistPicks(saved ? JSON.parse(saved) : []);
+      return;
+    }
     const lockedUntil = data?.scanLockedUntil ? new Date(data.scanLockedUntil).getTime() : 0;
     const isLocked = Date.now() < lockedUntil;
     setForceRefresh(!isLocked);
@@ -53,7 +74,7 @@ export default function DashboardPage() {
 
   const scanLabel = tab === "stocks" ? "S&P 500 large caps"
     : tab === "smallcap" ? "small cap universe"
-    : tab === "crypto" ? "top crypto pairs (4H)"
+    : tab === "crypto" ? "top crypto pairs (6H)"
     : "speculative universe";
 
   return (
@@ -65,12 +86,12 @@ export default function DashboardPage() {
             <Zap className="w-5 h-5 text-emerald-400" />
             <span className="text-white font-bold text-lg tracking-tight">Stock Cur8d</span>
           </div>
-          <div className="text-xs text-[#6b7280]">1-2 Day Trades</div>
+          <div className="text-xs text-[#6b7280]">Swing Trades</div>
         </div>
       </header>
 
       {/* Market status bar */}
-      {data && (
+      {data && !isWatchlist && (
         <MarketStatus
           marketOpen={data.marketOpen}
           lastUpdated={data.lastUpdated}
@@ -82,14 +103,16 @@ export default function DashboardPage() {
 
       <main className="max-w-4xl mx-auto px-4 py-6">
         {/* Tabs */}
-        <div className="flex gap-1 bg-[#111a14] border border-[#1c2e1e] rounded-xl p-1 mb-6 w-fit">
-          {TABS.map(({ id, label }) => (
+        <div className="flex flex-wrap gap-1 bg-[#111a14] border border-[#1c2e1e] rounded-xl p-1 mb-6 w-fit">
+          {ALL_TABS.map(({ id, label }) => (
             <button
               key={id}
               onClick={() => setTab(id)}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+              className={`px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
                 tab === id
-                  ? "bg-emerald-700 text-white shadow-sm"
+                  ? id === "watchlist"
+                    ? "bg-amber-700 text-white shadow-sm"
+                    : "bg-emerald-700 text-white shadow-sm"
                   : "text-[#6b7280] hover:text-white"
               }`}
             >
@@ -99,25 +122,38 @@ export default function DashboardPage() {
         </div>
 
         {/* Section header */}
-        <div className="flex items-center gap-2 mb-4">
-          {tab === "smallcap"
-            ? <FlameKindling className="w-5 h-5 text-amber-400" />
-            : tab === "speculative"
-            ? <FlaskConical className="w-5 h-5 text-purple-400" />
-            : <TrendingUp className="w-5 h-5 text-emerald-400" />
-          }
-          <h1 className="text-white font-bold text-xl">
-            {tab === "stocks" ? "Large Cap Momentum"
-              : tab === "smallcap" ? "Small Cap Runners"
-              : tab === "crypto" ? "Crypto Momentum (4H)"
-              : "Speculative Setups"}
-          </h1>
-          {data?.picks && (
-            <span className="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full px-2.5 py-0.5 font-medium">
-              {data.picks.length} picks
+        {!isWatchlist && (
+          <div className="flex items-center gap-2 mb-4">
+            {tab === "smallcap"
+              ? <FlameKindling className="w-5 h-5 text-amber-400" />
+              : tab === "speculative"
+              ? <FlaskConical className="w-5 h-5 text-purple-400" />
+              : <TrendingUp className="w-5 h-5 text-emerald-400" />
+            }
+            <h1 className="text-white font-bold text-xl">
+              {tab === "stocks" ? "Large Cap Momentum"
+                : tab === "smallcap" ? "Small Cap Runners"
+                : tab === "crypto" ? "Crypto Momentum (6H)"
+                : "Speculative Setups"}
+            </h1>
+            {data?.picks && (
+              <span className="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full px-2.5 py-0.5 font-medium">
+                {data.picks.length} picks
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Watchlist header */}
+        {isWatchlist && (
+          <div className="flex items-center gap-2 mb-4">
+            <Star className="w-5 h-5 text-amber-400" fill="currentColor" />
+            <h1 className="text-white font-bold text-xl">Watchlist</h1>
+            <span className="text-xs bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-full px-2.5 py-0.5 font-medium">
+              {watchlistPicks.length} saved
             </span>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Small cap risk callout */}
         {tab === "smallcap" && (
@@ -141,8 +177,32 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Watchlist content */}
+        {isWatchlist && (
+          <>
+            {watchlistPicks.length === 0 ? (
+              <div className="text-center py-20">
+                <Star className="w-8 h-8 text-[#4b5563] mx-auto mb-3" />
+                <p className="text-[#6b7280] text-base">No picks saved yet.</p>
+                <p className="text-[#4b5563] text-sm mt-2">
+                  Tap the ★ on any pick card to add it to your watchlist.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {watchlistPicks.map((pick, i) => (
+                  <PickCard key={pick.ticker} pick={pick} rank={i + 1} onWatchlistChange={() => {
+                    const saved = localStorage.getItem("watchlist");
+                    setWatchlistPicks(saved ? JSON.parse(saved) : []);
+                  }} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
         {/* Loading */}
-        {isLoading && (
+        {!isWatchlist && isLoading && (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
             <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin" />
             <p className="text-[#6b7280] text-sm">Scanning momentum across {scanLabel}...</p>
@@ -151,7 +211,7 @@ export default function DashboardPage() {
         )}
 
         {/* Error */}
-        {isError && (
+        {!isWatchlist && isError && (
           <div className="flex items-start gap-3 bg-red-950/30 border border-red-500/30 rounded-xl p-4">
             <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0 mt-0.5" />
             <div>
@@ -163,7 +223,7 @@ export default function DashboardPage() {
         )}
 
         {/* No picks */}
-        {!isLoading && !isError && data?.picks.length === 0 && (
+        {!isWatchlist && !isLoading && !isError && data?.picks.length === 0 && (
           <div className="text-center py-20">
             <p className="text-[#6b7280] text-base">No setups found right now.</p>
             <p className="text-[#4b5563] text-sm mt-2">
@@ -177,7 +237,7 @@ export default function DashboardPage() {
         )}
 
         {/* Pick grid */}
-        {data?.picks && data.picks.length > 0 && (
+        {!isWatchlist && data?.picks && data.picks.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {data.picks.map((pick, i) => (
               <PickCard key={pick.ticker} pick={pick} rank={i + 1} />
@@ -186,10 +246,12 @@ export default function DashboardPage() {
         )}
 
         {/* Disclaimer */}
-        <p className="text-[#4b5563] text-xs text-center mt-10 leading-relaxed">
-          {DISCLAIMERS[tab]} For informational purposes only. Not financial advice.
-          Past momentum does not guarantee future results. Always manage risk with a defined stop-loss.
-        </p>
+        {!isWatchlist && (
+          <p className="text-[#4b5563] text-xs text-center mt-10 leading-relaxed">
+            {DISCLAIMERS[tab as Exclude<Tab, "watchlist">]} For informational purposes only. Not financial advice.
+            Past momentum does not guarantee future results. Always manage risk with a defined stop-loss.
+          </p>
+        )}
       </main>
     </div>
   );

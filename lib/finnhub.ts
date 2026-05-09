@@ -71,12 +71,12 @@ export function enrichBarsWithToday(bars: OHLCVBar[], quote: FinnhubQuote | null
   return bars;
 }
 
-// Returns count of articles in the last `hoursBack` hours plus the latest headline.
+// Returns count of articles in the last `hoursBack` hours plus the latest headline and full list.
 // Returns null if no API key, request fails, or no articles found.
 export async function getFinnhubNews(
   ticker: string,
   hoursBack = 48
-): Promise<{ count: number; latest: string | null } | null> {
+): Promise<{ count: number; latest: string | null; articles: Array<{ headline: string; datetime: number; source: string; url?: string }> } | null> {
   const apiKey = process.env.FINNHUB_API_KEY;
   if (!apiKey) return null;
   try {
@@ -88,11 +88,15 @@ export async function getFinnhubNews(
       { cache: "no-store" }
     );
     if (!res.ok) return null;
-    const articles = await res.json() as Array<{ headline: string; datetime: number }>;
+    const articles = await res.json() as Array<{ headline: string; datetime: number; source: string; url?: string }>;
     if (!Array.isArray(articles) || articles.length === 0) return null;
     // Sort descending by datetime so articles[0] is the most recent
     articles.sort((a, b) => b.datetime - a.datetime);
-    return { count: articles.length, latest: articles[0]?.headline ?? null };
+    return {
+      count: articles.length,
+      latest: articles[0]?.headline ?? null,
+      articles: articles.slice(0, 10).map((a) => ({ headline: a.headline, datetime: a.datetime, source: a.source, url: a.url })),
+    };
   } catch {
     return null;
   }

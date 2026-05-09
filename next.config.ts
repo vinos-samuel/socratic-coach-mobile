@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // v3: watchlist, chat, news, stop/target cards, volume histogram, copyable alerts, bigger vol chart
 };
 
 export default nextConfig;

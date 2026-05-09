@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { TrendingUp, TrendingDown, Zap, FlaskConical } from "lucide-react";
 import { MomentumPick } from "@/types";
@@ -9,9 +10,68 @@ import { ScoreBadge } from "./ScoreBadge";
 interface PickCardProps {
   pick: MomentumPick;
   rank: number;
+  onWatchlistChange?: () => void;
 }
 
-export function PickCard({ pick, rank }: PickCardProps) {
+function VolumeHistogram({ volumes }: { volumes: number[] }) {
+  const maxVol = Math.max(...volumes);
+  if (maxVol === 0) return null;
+  const avgVol = volumes.slice(0, -1).reduce((a, b) => a + b, 0) / Math.max(volumes.length - 1, 1);
+  return (
+    <div className="flex items-end gap-px h-7">
+      {volumes.map((v, i) => {
+        const isLast = i === volumes.length - 1;
+        const heightPct = Math.max(3, (v / maxVol) * 100);
+        const isHighVol = isLast && v > avgVol * 1.5;
+        return (
+          <div
+            key={i}
+            className="flex-1 rounded-sm"
+            style={{
+              height: `${heightPct}%`,
+              backgroundColor: isLast
+                ? (isHighVol ? "#22c55e99" : "#6b7280aa")
+                : "#6b728035",
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+export function PickCard({ pick, rank, onWatchlistChange }: PickCardProps) {
+  const [starred, setStarred] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const saved = localStorage.getItem("watchlist");
+      if (!saved) return false;
+      const picks = JSON.parse(saved) as MomentumPick[];
+      return picks.some((p) => p.ticker === pick.ticker);
+    } catch {
+      return false;
+    }
+  });
+
+  function toggleStar(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const saved = localStorage.getItem("watchlist");
+      let picks: MomentumPick[] = saved ? JSON.parse(saved) : [];
+      if (starred) {
+        picks = picks.filter((p) => p.ticker !== pick.ticker);
+      } else {
+        picks = [...picks.filter((p) => p.ticker !== pick.ticker), pick];
+      }
+      localStorage.setItem("watchlist", JSON.stringify(picks));
+      setStarred(!starred);
+      onWatchlistChange?.();
+    } catch {
+      // ignore storage errors
+    }
+  }
+
   const positive = pick.changePct >= 0;
   const priceColor = positive ? "text-green-400" : "text-red-400";
   const href = pick.type === "crypto" ? `/crypto/${pick.ticker}` : `/stock/${pick.ticker}`;
@@ -21,8 +81,17 @@ export function PickCard({ pick, rank }: PickCardProps) {
   return (
     <Link href={href}>
       <div className="group relative bg-[#111a14] border border-[#1c2e1e] rounded-xl p-4 hover:border-emerald-500/50 hover:bg-[#132018] transition-all duration-200 cursor-pointer active:scale-[0.98]">
-        {/* Rank badge */}
-        <div className="absolute top-3 right-3 text-xs font-mono text-[#6b7280]">#{rank}</div>
+        {/* Rank + star */}
+        <div className="absolute top-3 right-3 flex items-center gap-1.5">
+          <button
+            onClick={toggleStar}
+            className={`text-base leading-none transition-colors ${starred ? "text-amber-400" : "text-[#3a4a3e] hover:text-[#9ca3af]"}`}
+            aria-label={starred ? "Remove from watchlist" : "Add to watchlist"}
+          >
+            ★
+          </button>
+          <span className="text-xs font-mono text-[#6b7280]">#{rank}</span>
+        </div>
 
         {/* Header */}
         <div className="flex items-start justify-between mb-3">
@@ -68,9 +137,16 @@ export function PickCard({ pick, rank }: PickCardProps) {
         </div>
 
         {/* Sparkline */}
-        <div className="mb-3 opacity-90">
+        <div className="mb-2 opacity-90">
           <Sparkline data={pick.sparkline} positive={positive} width={200} height={44} />
         </div>
+
+        {/* Volume histogram */}
+        {pick.volumeSparkline && pick.volumeSparkline.length > 0 && (
+          <div className="mb-3">
+            <VolumeHistogram volumes={pick.volumeSparkline} />
+          </div>
+        )}
 
         {/* Signal chips */}
         <div className="flex flex-wrap gap-1.5 mb-3">
@@ -92,6 +168,11 @@ export function PickCard({ pick, rank }: PickCardProps) {
               📰 {pick.newsCount} news
             </span>
           ) : null}
+          {pick.latestHeadline && (
+            <p className="w-full text-[10px] text-[#9ca3af] leading-tight mt-0.5 line-clamp-2 italic">
+              {pick.latestHeadline}
+            </p>
+          )}
           {pick.sentiment && pick.sentiment.total >= 2 ? (
             <span className={`text-xs rounded-md px-2 py-0.5 font-medium border ${
               pick.sentiment.bullishPct >= 65
@@ -122,6 +203,22 @@ export function PickCard({ pick, rank }: PickCardProps) {
             <div className={`font-mono font-semibold ${pick.rsi >= 55 && pick.rsi <= 80 ? "text-green-400" : pick.rsi > 80 ? "text-red-400" : "text-white"}`}>
               {pick.rsi.toFixed(0)}
             </div>
+          </div>
+        </div>
+
+        {/* Stop / Target */}
+        <div className="flex justify-between text-xs mt-2 pt-2 border-t border-[#1c2e1e]">
+          <div>
+            <span className="text-[#6b7280]">Stop </span>
+            <span className="text-red-400 font-mono font-semibold">
+              ${pick.tradeSetup.stopLoss.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+          <div>
+            <span className="text-[#6b7280]">Target </span>
+            <span className="text-sky-400 font-mono font-semibold">
+              ${pick.tradeSetup.target.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
           </div>
         </div>
 

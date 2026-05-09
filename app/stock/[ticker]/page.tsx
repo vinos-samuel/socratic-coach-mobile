@@ -9,6 +9,7 @@ import { StockChart } from "@/components/StockChart";
 import { MomentumSignals } from "@/components/MomentumSignals";
 import { TradeSetupCard } from "@/components/TradeSetupCard";
 import { TradeCommentary } from "@/components/TradeCommentary";
+import { NewsSection } from "@/components/NewsSection";
 import { ScoreBadge } from "@/components/ScoreBadge";
 
 async function fetchStockDetail(ticker: string): Promise<StockDetailResponse> {
@@ -101,9 +102,18 @@ export default function StockDetailPage({ params }: { params: Promise<{ ticker: 
 
           {/* Two-col layout on desktop */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <TradeSetupCard setup={data.tradeSetup} price={data.price} />
+            <TradeSetupCard
+              setup={data.tradeSetup}
+              price={data.price}
+              ema9={data.ema9Series.length > 0 ? data.ema9Series[data.ema9Series.length - 1]?.value : undefined}
+            />
             <MomentumSignals signals={data.signals} />
           </div>
+
+          {/* News */}
+          {data.newsArticles && data.newsArticles.length > 0 && (
+            <NewsSection articles={data.newsArticles} />
+          )}
 
           {/* Full-width commentary */}
           <TradeCommentary pick={{ ticker: data.ticker, name: data.name, price: data.price, changePct: data.changePct, signals: data.signals, tradeSetup: data.tradeSetup, rsRating: data.rsRating, volumeRatio: data.volumeRatio, rsi: data.rsi, score: data.score, type: "stock", ruleBasedCommentary: data.ruleBasedCommentary }} />
