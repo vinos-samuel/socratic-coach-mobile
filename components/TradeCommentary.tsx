@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { Sparkles, Loader2, TrendingUp, Crosshair, ShieldAlert, Target, AlertTriangle } from "lucide-react";
-import { MomentumPick, DeepAnalysisRequest } from "@/types";
+import { useState, useRef, useEffect } from "react";
+import { Sparkles, Loader2, TrendingUp, Crosshair, ShieldAlert, Target, AlertTriangle, Send, MessageCircle } from "lucide-react";
+import { MomentumPick, DeepAnalysisRequest, ChatMessage } from "@/types";
 
 interface TradeCommentaryProps {
   pick: Pick<MomentumPick, "ticker" | "name" | "price" | "changePct" | "signals" | "tradeSetup" | "rsRating" | "volumeRatio" | "rsi" | "score" | "type" | "ruleBasedCommentary">;
@@ -17,6 +17,13 @@ const SECTIONS = [
 ] as const;
 
 type SectionKey = (typeof SECTIONS)[number]["key"];
+
+const STARTER_QUESTIONS = [
+  "Is this a good entry right now?",
+  "What would make this trade fail?",
+  "How should I size this position?",
+  "When should I take partial profits?",
+];
 
 function parseSections(text: string): Partial<Record<SectionKey, string>> {
   const result: Partial<Record<SectionKey, string>> = {};
@@ -37,6 +44,15 @@ export function TradeCommentary({ pick }: TradeCommentaryProps) {
   const [deepAnalysis, setDeepAnalysis] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
 
   async function fetchDeepAnalysis() {
     setLoading(true);
@@ -67,6 +83,57 @@ export function TradeCommentary({ pick }: TradeCommentaryProps) {
       setError("Failed to get deep analysis. Check your ANTHROPIC_API_KEY.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function sendChatMessage(message?: string) {
+    const text = (message ?? chatInput).trim();
+    if (!text || chatLoading) return;
+    const userMsg: ChatMessage = { role: "user", content: text };
+    const nextMessages = [...chatMessages, userMsg];
+    setChatMessages(nextMessages);
+    setChatInput("");
+    setChatLoading(true);
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticker: pick.ticker,
+          name: pick.name,
+          price: pick.price,
+          changePct: pick.changePct,
+          score: pick.score,
+          tradeSetup: pick.tradeSetup,
+          messages: nextMessages,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Chat failed");
+
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let assistantContent = "";
+      setChatMessages([...nextMessages, { role: "assistant", content: "" }]);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        assistantContent += decoder.decode(value, { stream: true });
+        setChatMessages([...nextMessages, { role: "assistant", content: assistantContent }]);
+      }
+    } catch {
+      setChatMessages([...nextMessages, { role: "assistant", content: "Sorry, chat unavailable. Check your ANTHROPIC_API_KEY." }]);
+    } finally {
+      setChatLoading(false);
+    }
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendChatMessage();
     }
   }
 
@@ -109,7 +176,6 @@ export function TradeCommentary({ pick }: TradeCommentaryProps) {
               })}
             </div>
           ) : (
-            // Fallback: render raw text if model didn't follow the format
             <p className="text-[#d1d5db] text-sm leading-relaxed">{deepAnalysis}</p>
           )}
         </div>
@@ -126,7 +192,7 @@ export function TradeCommentary({ pick }: TradeCommentaryProps) {
         <button
           onClick={fetchDeepAnalysis}
           disabled={loading}
-          className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-600 disabled:bg-emerald-950 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2.5 px-4 text-sm transition-colors"
+          className="w-full flex items-center justify-center gap-2 bg-emerald-700 hover:bg-emerald-600 disabled:bg-emerald-950 disabled:cursor-not-allowed text-white font-semibold rounded-lg py-2.5 px-4 text-sm transition-colors mb-4"
         >
           {loading ? (
             <>
@@ -140,6 +206,73 @@ export function TradeCommentary({ pick }: TradeCommentaryProps) {
             </>
           )}
         </button>
+      )}
+
+      {/* Chat interface — available after deep analysis loads */}
+      {deepAnalysis && (
+        <div className="border-t border-[#1c2e1e] pt-4 mt-2">
+          <div className="flex items-center gap-2 mb-3">
+            <MessageCircle className="w-4 h-4 text-emerald-400" />
+            <span className="text-emerald-400 text-xs font-semibold uppercase tracking-wide">Ask a follow-up</span>
+          </div>
+
+          {/* Starter question chips */}
+          {chatMessages.length === 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {STARTER_QUESTIONS.map((q) => (
+                <button
+                  key={q}
+                  onClick={() => sendChatMessage(q)}
+                  disabled={chatLoading}
+                  className="text-xs bg-[#0d1a10] border border-[#1c2e1e] hover:border-emerald-500/40 text-[#9ca3af] hover:text-emerald-300 rounded-full px-3 py-1 transition-colors disabled:opacity-50"
+                >
+                  {q}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Chat messages */}
+          {chatMessages.length > 0 && (
+            <div className="space-y-3 mb-3 max-h-80 overflow-y-auto">
+              {chatMessages.map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[85%] rounded-xl px-3 py-2 text-sm leading-relaxed ${
+                    msg.role === "user"
+                      ? "bg-emerald-700 text-white"
+                      : "bg-[#0d1a10] border border-[#1c2e1e] text-[#d1d5db]"
+                  }`}>
+                    {msg.content || (msg.role === "assistant" && chatLoading && i === chatMessages.length - 1
+                      ? <Loader2 className="w-3 h-3 animate-spin" />
+                      : null
+                    )}
+                  </div>
+                </div>
+              ))}
+              <div ref={chatEndRef} />
+            </div>
+          )}
+
+          {/* Input */}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={chatLoading}
+              placeholder="Ask anything about this trade..."
+              className="flex-1 bg-[#0d1a10] border border-[#1c2e1e] focus:border-emerald-500/50 rounded-lg px-3 py-2 text-sm text-white placeholder:text-[#4b5563] outline-none transition-colors disabled:opacity-50"
+            />
+            <button
+              onClick={() => sendChatMessage()}
+              disabled={chatLoading || !chatInput.trim()}
+              className="bg-emerald-700 hover:bg-emerald-600 disabled:bg-emerald-950 disabled:cursor-not-allowed text-white rounded-lg px-3 py-2 transition-colors"
+            >
+              {chatLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
