@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSnapshotBatch } from "@/lib/polygon";
+import { getFinnhubQuote } from "@/lib/finnhub";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,27 @@ export async function POST(req: NextRequest) {
     }
 
     const snapshot = await getSnapshotBatch(tickers);
+
+    // Finnhub fallback for any tickers the snapshot didn't return
+    const missing = tickers.filter((t) => !snapshot.has(t));
+    if (missing.length > 0) {
+      await Promise.allSettled(
+        missing.map(async (ticker) => {
+          const q = await getFinnhubQuote(ticker);
+          if (q && q.c > 0) {
+            snapshot.set(ticker, {
+              ticker,
+              day: { o: q.o, h: q.h, l: q.l, c: q.c, v: q.v ?? 0, vw: 0 },
+              prevDay: { c: q.pc },
+              lastTrade: { p: q.c, t: q.t * 1_000_000_000 },
+              todaysChange: q.d,
+              todaysChangePerc: q.dp,
+            });
+          }
+        })
+      );
+    }
+
     const mins = minutesIntoSession();
     const marketOpen = isMarketOpen(mins);
 

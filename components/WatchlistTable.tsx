@@ -53,6 +53,12 @@ function volColor(r: number): string {
   return "text-[#6b7280]";
 }
 
+function formatVol(v: number): string {
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
+  if (v >= 1_000) return `${Math.round(v / 1_000)}K`;
+  return `${v}`;
+}
+
 export function WatchlistTable({ picks, onWatchlistChange }: WatchlistTableProps) {
   const [liveData, setLiveData] = useState<Record<string, LiveEntry>>({});
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
@@ -111,7 +117,7 @@ export function WatchlistTable({ picks, onWatchlistChange }: WatchlistTableProps
       const volRatio = live?.normalizedVolRatio ?? null;
       const status = getStatus(price, pick.tradeSetup);
       const distPct = ((pick.tradeSetup.entryHigh - price) / price) * 100;
-      return { pick, price, changePct, volRatio, status, distPct };
+      return { pick, price, changePct, volRatio, status, distPct, live };
     })
     .sort((a, b) => {
       const sd = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
@@ -144,10 +150,10 @@ export function WatchlistTable({ picks, onWatchlistChange }: WatchlistTableProps
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-[#1c2e1e]">
-        <table className="w-full min-w-[760px] text-sm">
+        <table className="w-full min-w-[900px] text-sm">
           <thead>
             <tr className="border-b border-[#1c2e1e] bg-[#0d1a10]">
-              {["Ticker", "Price", "Chg%", "Dist to Entry", "Vol (norm)", "RSI", "Stop", "Target", "R:R", "Status", ""].map((h) => (
+              {["Ticker", "Price", "Chg%", "Entry Zone", "Dist to Entry", "Vol (norm)", "RSI", "Stop", "Target", "R:R", "Status", ""].map((h) => (
                 <th key={h} className="px-3 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wider text-left first:text-left [&:not(:first-child)]:text-right last:text-center">
                   {h}
                 </th>
@@ -155,7 +161,7 @@ export function WatchlistTable({ picks, onWatchlistChange }: WatchlistTableProps
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ pick, price, changePct, volRatio, status, distPct }) => {
+            {rows.map(({ pick, price, changePct, volRatio, status, distPct, live }) => {
               const positive = changePct >= 0;
               const href = pick.type === "crypto" ? `/crypto/${pick.ticker}` : `/stock/${pick.ticker}`;
               const highlight = status === "BREAKOUT" || status === "AT_ZONE";
@@ -176,13 +182,22 @@ export function WatchlistTable({ picks, onWatchlistChange }: WatchlistTableProps
                       {positive ? "+" : ""}{changePct.toFixed(2)}%
                     </span>
                   </td>
+                  <td className="px-3 py-3 text-right font-mono text-xs text-sky-300">
+                    ${pick.tradeSetup.entryLow.toFixed(2)}–${pick.tradeSetup.entryHigh.toFixed(2)}
+                  </td>
                   <td className={`px-3 py-3 text-right font-mono text-xs ${
                     distPct < 0 ? "text-green-400 font-bold" : distPct < 1 ? "text-amber-400 font-semibold" : "text-[#9ca3af]"
                   }`}>
                     {distPct < 0 ? `+${Math.abs(distPct).toFixed(1)}% above` : distPct < 0.5 ? `${distPct.toFixed(1)}% ⚡` : `${distPct.toFixed(1)}% away`}
                   </td>
-                  <td className={`px-3 py-3 text-right font-mono text-sm font-semibold ${volRatio !== null ? volColor(volRatio) : "text-[#4b5563]"}`}>
-                    {volRatio !== null ? `${volRatio.toFixed(1)}x` : "—"}
+                  <td className={`px-3 py-3 text-right font-mono text-sm font-semibold ${
+                    volRatio !== null ? volColor(volRatio) : live?.dayVolume ? "text-[#6b7280]" : "text-[#4b5563]"
+                  }`}>
+                    {volRatio !== null
+                      ? `${volRatio.toFixed(1)}x`
+                      : live?.dayVolume
+                      ? formatVol(live.dayVolume)
+                      : "—"}
                   </td>
                   <td className={`px-3 py-3 text-right font-mono text-sm ${
                     pick.rsi >= 55 && pick.rsi <= 80 ? "text-green-400" : pick.rsi > 80 ? "text-red-400" : "text-white"
@@ -202,7 +217,7 @@ export function WatchlistTable({ picks, onWatchlistChange }: WatchlistTableProps
       </div>
 
       <p className="text-[10px] text-[#4b5563] mt-3 leading-relaxed">
-        Vol is time-normalized: intraday volume ÷ (20d avg × % of session elapsed). A 2x reading early in session is far stronger than 2x near close.
+        Vol is time-normalized: intraday volume ÷ (20d avg × % of session elapsed). A 2x reading early in session is far stronger than 2x near close. Raw volume shown (M/K) when avg not available.
         Auto-refreshes every 60s. Click any row to open the full chart. ★ to remove.
       </p>
     </div>

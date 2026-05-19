@@ -85,8 +85,8 @@ export async function getSnapshotBatch(
     const chunk = tickers.slice(i, i + CHUNK);
     const url = `${BASE}/v2/snapshot/locale/us/markets/stocks/tickers?tickers=${chunk.join(",")}&apiKey=${key()}`;
     try {
-      const data = await get<{ results: PolygonSnapshotEntry[] }>(url);
-      for (const entry of data.results ?? []) {
+      const data = await get<{ tickers: PolygonSnapshotEntry[] }>(url);
+      for (const entry of data.tickers ?? []) {
         map.set(entry.ticker, entry);
       }
     } catch (err) {
