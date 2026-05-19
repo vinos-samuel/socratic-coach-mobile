@@ -65,6 +65,7 @@ export interface MomentumPick {
   distanceFromEma9Pct?: number;
   isSpeculative?: boolean;
   volumeSparkline?: number[];
+  avgDailyVolume?: number;
 }
 
 export interface ChatMessage {

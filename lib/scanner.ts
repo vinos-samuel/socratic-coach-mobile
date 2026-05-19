@@ -102,6 +102,7 @@ function buildPick(
     aboveVwap: scored.aboveVwap,
     sparkline: bars.slice(-30).map((b) => b.close),
     volumeSparkline: bars.slice(-20).map((b) => b.volume),
+    avgDailyVolume: Math.round(rawBars.slice(-21, -1).reduce((s, b) => s + b.volume, 0) / 20),
     tradeSetup: scored.tradeSetup,
     signals: scored.signals,
     ruleBasedCommentary: scored.ruleBasedCommentary,
@@ -115,16 +116,12 @@ async function runScan(
   benchmarkTicker: string,
   options: { benchmarkName: string; maxStopPct: number; threshold: number; limit: number }
 ): Promise<MomentumPick[]> {
-  // Fetch benchmark bars and a batch snapshot for the entire universe + benchmark
-  // in parallel. The snapshot (Polygon Starter) gives real-time prices and intraday
-  // volume for all tickers in one API call instead of 80+ individual Finnhub calls.
   const allTickers = [...universe, benchmarkTicker];
   const [benchmarkRaw, snapshotMap] = await Promise.all([
     getDailyBars(benchmarkTicker, 252),
     getSnapshotBatch(allTickers),
   ]);
 
-  // Resolve the benchmark quote: prefer Polygon snapshot, fall back to Finnhub
   const benchmarkSnap = snapshotMap.get(benchmarkTicker);
   const benchmarkQuote = benchmarkSnap
     ? snapshotToQuote(benchmarkSnap)
@@ -140,7 +137,6 @@ async function runScan(
   await Promise.allSettled(
     universe.map(async (ticker) => {
       try {
-        // Fetch 252-day history; quote comes from the snapshot batch (or Finnhub fallback)
         const rawBars = await getDailyBars(ticker, 252);
 
         const tickerLastBarTime = rawBars[rawBars.length - 1].t / 1000;
@@ -148,11 +144,6 @@ async function runScan(
         if (daysBehind > 5) return;
 
         const snap = snapshotMap.get(ticker);
-        // On free Polygon tier, snapshot is empty. Calling getFinnhubQuote() for
-        // every universe ticker in parallel (35+ calls) exhausts the 60 req/min
-        // Finnhub limit before news enrichment can run. Skip per-ticker live price
-        // on free tier and use yesterday's EOD close from getDailyBars instead.
-        // Live intraday prices are available automatically when Polygon Starter is active.
         const quote = snap ? snapshotToQuote(snap) : null;
 
         const bars = rawBars.map(polygonToOHLCV);
@@ -167,8 +158,6 @@ async function runScan(
   results.sort((a, b) => b.score - a.score);
   const top = results.slice(0, options.limit);
 
-  // Enrich top picks with company names, Finnhub news, and StockTwits sentiment.
-  // All run in parallel; failures are silent so they never block the picks response.
   await Promise.allSettled(
     top.map(async (pick) => {
       const [details, news, sentiment] = await Promise.allSettled([
@@ -216,7 +205,6 @@ export function runSmallCapScan(limit = 10): Promise<MomentumPick[]> {
 }
 
 export async function runCryptoScan(limit = 6): Promise<MomentumPick[]> {
-  // BTC as the crypto benchmark — "is this coin outperforming Bitcoin?" (6H candles)
   const btcBars = await getCoinbase4hrCandles("BTC-USD", 50);
   const btcLastBarTime = btcBars[btcBars.length - 1].time;
 
@@ -257,6 +245,7 @@ export async function runCryptoScan(limit = 6): Promise<MomentumPick[]> {
           aboveVwap: scored.aboveVwap,
           sparkline: candles.slice(-30).map((b) => b.close),
           volumeSparkline: candles.slice(-20).map((b) => b.volume),
+          avgDailyVolume: Math.round(candles.slice(-21, -1).reduce((s, b) => s + b.volume, 0) / 20),
           tradeSetup: scored.tradeSetup,
           signals: scored.signals,
           ruleBasedCommentary: scored.ruleBasedCommentary,
