@@ -169,7 +169,7 @@ export function WatchlistTable({ picks, onWatchlistChange }: WatchlistTableProps
         <table className="w-full min-w-[900px] text-sm">
           <thead>
             <tr className="border-b border-[#1c2e1e] bg-[#0d1a10]">
-              {["Ticker", "Price", "Chg%", "Entry Zone", "Dist to Entry", "Vol (norm)", "RSI", "Stop", "Target", "R:R", "Status", ""].map((h) => (
+              {["Ticker", "Price", "Chg%", "Entry Zone", "Dist to Entry", "Vol (norm)", "RSI", "Stop", "Target", "R:R", "Status"].map((h) => (
                 <th key={h} className="px-3 py-2.5 text-xs font-semibold text-[#6b7280] uppercase tracking-wider text-left first:text-left [&:not(:first-child)]:text-right last:text-center">
                   {h}
                 </th>
@@ -184,10 +184,20 @@ export function WatchlistTable({ picks, onWatchlistChange }: WatchlistTableProps
               return (
                 <tr key={pick.ticker} className={`border-b border-[#1c2e1e] last:border-0 transition-colors hover:bg-[#132018] ${highlight ? "bg-[#0f1f12]" : ""}`}>
                   <td className="px-3 py-3">
-                    <Link href={href} className="flex flex-col">
-                      <span className="font-bold font-mono text-white leading-none">{pick.ticker}</span>
-                      <span className="text-[10px] text-[#6b7280] truncate max-w-[80px] mt-0.5">{pick.name}</span>
-                    </Link>
+                    <div className="flex items-start justify-between gap-2">
+                      <Link href={href} className="flex flex-col">
+                        <span className="font-bold font-mono text-white leading-none">{pick.ticker}</span>
+                        <span className="text-[10px] text-[#6b7280] truncate max-w-[72px] mt-0.5">{pick.name}</span>
+                      </Link>
+                      <button
+                        onClick={(e) => { e.preventDefault(); removePick(pick.ticker); }}
+                        className="text-red-400/50 hover:text-red-400 transition-colors flex-shrink-0 mt-0.5"
+                        title="Remove from watchlist"
+                        aria-label={`Remove ${pick.ticker}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
                   </td>
                   <td className="px-3 py-3 text-right font-mono font-semibold text-white">
                     {price > 0
@@ -230,16 +240,6 @@ export function WatchlistTable({ picks, onWatchlistChange }: WatchlistTableProps
                   <td className="px-3 py-3 text-right font-mono text-xs text-sky-400">${pick.tradeSetup.target.toFixed(2)}</td>
                   <td className="px-3 py-3 text-right font-mono text-xs text-white">1:{pick.tradeSetup.riskReward.toFixed(1)}</td>
                   <td className="px-3 py-3 text-right"><StatusBadge status={status} /></td>
-                  <td className="px-3 py-3 text-center">
-                    <button
-                      onClick={() => removePick(pick.ticker)}
-                      className="text-[#4b5563] hover:text-red-400 transition-colors"
-                      aria-label={`Remove ${pick.ticker} from watchlist`}
-                      title="Remove from watchlist"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </td>
                 </tr>
               );
             })}
