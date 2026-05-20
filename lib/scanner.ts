@@ -83,7 +83,11 @@ function buildPick(
   if (!scored || scored.score < options.threshold) return null;
 
   const price = quote?.c && quote.c > 0 ? quote.c : bars[bars.length - 1].close;
-  const prevClose = quote?.pc && quote.pc > 0 ? quote.pc : (bars[bars.length - 2]?.close ?? price);
+  // Only use quote.pc when we have a live price — without one, both price and quote.pc
+  // equal yesterday's close producing 0% change. Use bars[-2] instead for the real prev-day move.
+  const prevClose = (quote?.c && quote.c > 0 && quote?.pc && quote.pc > 0)
+    ? quote.pc
+    : (bars[bars.length - 2]?.close ?? price);
   const change = price - prevClose;
   const changePct = (change / prevClose) * 100;
 

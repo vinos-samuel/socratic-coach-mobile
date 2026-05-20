@@ -193,7 +193,9 @@ export async function runSpeculativeScan(limit = 10): Promise<MomentumPick[]> {
         if (!scored || scored.score < 40) return;
 
         const price = quote?.c && quote.c > 0 ? quote.c : bars[bars.length - 1].close;
-        const prevClose = quote?.pc && quote.pc > 0 ? quote.pc : (bars[bars.length - 2]?.close ?? price);
+        const prevClose = (quote?.c && quote.c > 0 && quote?.pc && quote.pc > 0)
+          ? quote.pc
+          : (bars[bars.length - 2]?.close ?? price);
         const change = price - prevClose;
         const changePct = (change / prevClose) * 100;
 

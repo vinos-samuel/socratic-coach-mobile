@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
       const snap = snapshot.get(ticker);
       if (!snap) continue;
 
-      const price = snap.lastTrade?.p || snap.day.c;
+      const price = snap.lastTrade?.p || snap.day.c || snap.prevDay.c;
       const changePct = snap.todaysChangePerc;
       const dayVolume = snap.day.v;
       const avgVol = avgVolumes[ticker] ?? 0;

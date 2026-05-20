@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { RefreshCw, TrendingUp, TrendingDown } from "lucide-react";
+import { RefreshCw, TrendingUp, TrendingDown, X } from "lucide-react";
 import { MomentumPick, TradeSetup } from "@/types";
 
 interface LiveEntry {
@@ -27,6 +27,7 @@ const STATUS_ORDER: Record<RowStatus, number> = {
 };
 
 function getStatus(price: number, setup: TradeSetup): RowStatus {
+  if (price <= 0) return "WATCH";
   if (price <= setup.stopLoss) return "STOP_HIT";
   if (price > setup.entryHigh) return "BREAKOUT";
   if (price >= setup.entryLow * 0.99) return "AT_ZONE";
@@ -109,6 +110,13 @@ export function WatchlistTable({ picks, onWatchlistChange }: WatchlistTableProps
     } catch { /* ignore */ }
   }
 
+  function clearAll() {
+    try {
+      localStorage.setItem("watchlist", JSON.stringify([]));
+      onWatchlistChange();
+    } catch { /* ignore */ }
+  }
+
   const rows = picks
     .map((pick) => {
       const live = liveData[pick.ticker];
@@ -116,12 +124,12 @@ export function WatchlistTable({ picks, onWatchlistChange }: WatchlistTableProps
       const changePct = live?.changePct ?? pick.changePct;
       const volRatio = live?.normalizedVolRatio ?? null;
       const status = getStatus(price, pick.tradeSetup);
-      const distPct = ((pick.tradeSetup.entryHigh - price) / price) * 100;
+      const distPct = price > 0 ? ((pick.tradeSetup.entryHigh - price) / price) * 100 : null;
       return { pick, price, changePct, volRatio, status, distPct, live };
     })
     .sort((a, b) => {
       const sd = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
-      return sd !== 0 ? sd : a.distPct - b.distPct;
+      return sd !== 0 ? sd : (a.distPct ?? Infinity) - (b.distPct ?? Infinity);
     });
 
   const sessionLabel = minutesInSession >= 390 ? "Market closed"
@@ -136,7 +144,7 @@ export function WatchlistTable({ picks, onWatchlistChange }: WatchlistTableProps
         }`}>
           {marketOpen ? "● " : "○ "}{sessionLabel}
         </span>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           {lastUpdated && (
             <span className="text-xs text-[#4b5563]">
               {new Date(lastUpdated).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Singapore" })} SGT
@@ -146,6 +154,14 @@ export function WatchlistTable({ picks, onWatchlistChange }: WatchlistTableProps
             <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </button>
+          {picks.length > 0 && (
+            <button
+              onClick={() => { if (confirm(`Remove all ${picks.length} picks from watchlist?`)) clearAll(); }}
+              className="text-xs text-[#6b7280] hover:text-red-400 transition-colors"
+            >
+              Clear all
+            </button>
+          )}
         </div>
       </div>
 
@@ -174,7 +190,9 @@ export function WatchlistTable({ picks, onWatchlistChange }: WatchlistTableProps
                     </Link>
                   </td>
                   <td className="px-3 py-3 text-right font-mono font-semibold text-white">
-                    ${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: price > 100 ? 2 : 4 })}
+                    {price > 0
+                      ? `$${price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: price > 100 ? 2 : 4 })}`
+                      : "—"}
                   </td>
                   <td className={`px-3 py-3 text-right font-mono text-sm font-semibold ${positive ? "text-green-400" : "text-red-400"}`}>
                     <span className="flex items-center justify-end gap-0.5">
@@ -186,9 +204,15 @@ export function WatchlistTable({ picks, onWatchlistChange }: WatchlistTableProps
                     ${pick.tradeSetup.entryLow.toFixed(2)}–${pick.tradeSetup.entryHigh.toFixed(2)}
                   </td>
                   <td className={`px-3 py-3 text-right font-mono text-xs ${
-                    distPct < 0 ? "text-green-400 font-bold" : distPct < 1 ? "text-amber-400 font-semibold" : "text-[#9ca3af]"
+                    distPct === null ? "text-[#4b5563]"
+                      : distPct < 0 ? "text-green-400 font-bold"
+                      : distPct < 1 ? "text-amber-400 font-semibold"
+                      : "text-[#9ca3af]"
                   }`}>
-                    {distPct < 0 ? `+${Math.abs(distPct).toFixed(1)}% above` : distPct < 0.5 ? `${distPct.toFixed(1)}% ⚡` : `${distPct.toFixed(1)}% away`}
+                    {distPct === null ? "—"
+                      : distPct < 0 ? `+${Math.abs(distPct).toFixed(1)}% above`
+                      : distPct < 0.5 ? `${distPct.toFixed(1)}% ⚡`
+                      : `${distPct.toFixed(1)}% away`}
                   </td>
                   <td className={`px-3 py-3 text-right font-mono text-sm font-semibold ${
                     volRatio !== null ? volColor(volRatio) : live?.dayVolume ? "text-[#6b7280]" : "text-[#4b5563]"
@@ -207,7 +231,14 @@ export function WatchlistTable({ picks, onWatchlistChange }: WatchlistTableProps
                   <td className="px-3 py-3 text-right font-mono text-xs text-white">1:{pick.tradeSetup.riskReward.toFixed(1)}</td>
                   <td className="px-3 py-3 text-right"><StatusBadge status={status} /></td>
                   <td className="px-3 py-3 text-center">
-                    <button onClick={() => removePick(pick.ticker)} className="text-amber-400 hover:text-[#6b7280] transition-colors text-sm leading-none" aria-label="Remove from watchlist">★</button>
+                    <button
+                      onClick={() => removePick(pick.ticker)}
+                      className="text-[#4b5563] hover:text-red-400 transition-colors"
+                      aria-label={`Remove ${pick.ticker} from watchlist`}
+                      title="Remove from watchlist"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   </td>
                 </tr>
               );
@@ -218,7 +249,7 @@ export function WatchlistTable({ picks, onWatchlistChange }: WatchlistTableProps
 
       <p className="text-[10px] text-[#4b5563] mt-3 leading-relaxed">
         Vol is time-normalized: intraday volume ÷ (20d avg × % of session elapsed). A 2x reading early in session is far stronger than 2x near close. Raw volume shown (M/K) when avg not available.
-        Auto-refreshes every 60s. Click any row to open the full chart. ★ to remove.
+        Auto-refreshes every 60s. Click ticker to open full chart. × to remove individual pick.
       </p>
     </div>
   );
